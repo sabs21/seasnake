@@ -13,7 +13,10 @@
 #include <sys/ioctl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <ncurses.h>
+
+#define INFO_ROW 1
 
 /** prototypes **/
 /* RE: snake pit */
@@ -52,6 +55,10 @@ static char move_right = 'd';
  *  Returns: interactive game on terminal
  */
 int main(){
+    /* Initialize global random number generator */
+    time_t t;
+    srand((unsigned) time(NULL));
+
     /* set window grid */
     pit_size();                                                             // get/set dimensions of window
     char grid[window_row][window_col];
@@ -115,7 +122,7 @@ void pit_size(){
         /* DEBUG LINE */
         printf("%d rows x %d cols\n", wbuf.ws_row, wbuf.ws_col);
         /* assign global variable values here: */
-        window_row = wbuf.ws_row;                                              // assign global row
+        window_row = wbuf.ws_row - INFO_ROW;                                              // assign global row
         window_col = wbuf.ws_col;                                              // assign global column
     }
 }
@@ -148,8 +155,8 @@ void update(char array[window_row-1][window_col-1]){
  *  Method: call update() after user input
  *  Returns: updated game grid
  */
-char choose_random_direction(int min, int max){
-    int random_integer = 0;                                         // DETERMINE RANDOM
+char choose_random_direction(){
+    int random_integer = rand() % 4; // DETERMINE RANDOM NUMBER BETWEEN 0 AND 3
     if (random_integer == 0){
         return 'w';
     } else if (random_integer == 1){
