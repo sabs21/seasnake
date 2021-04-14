@@ -92,38 +92,40 @@ struct node *tail = NULL;
  *  Returns: interactive game on terminal
  */
 int main(){
+    /* Manage terminal settings */
+    tty_mode(0); // Save original settings
+    set_settings(); // Set terminal settings for the program.
+
+    /* pressing Ctrl-C with these */
+    //signal(SIGINT, end_snake); // Revert to original settings on program termination
+    //signal(SIGQUIT, SIG_IGN);
+    //set_nodelay_mode(); /* I'm not sure if this is , but I'm keeping it here for now just in case. */
+
     /* Initialize global random number generator */
     time_t t;
     srand((unsigned) time(NULL));
-
-    /* Manage terminal settings */
-    tty_mode(0); // Save original settings
-    signal(SIGINT, end_snake); // Revert to original settings on program termination
-    signal(SIGQUIT, SIG_IGN);
-    set_settings(); // Set terminal settings for the program.
-    set_nodelay_mode(); /* I'm not sure if this is , but I'm keeping it here for now just in case. */
 
     /* set window grid */
     pit_size();                                                             // get/set dimensions of window
     char grid[window_row][window_col];                                      // initialize game dimensions
 
     /* initialize snake */
-    printf("starter snake: ");                                              // DEBUG -
-    starter_snake();                                                        // make a 3 segment baby snake
-    print_snake();                                                          // DEBUG - SHOWS SNAKE DATA STRUCTURE WORKS
-    printf("\n");                                                           // DEBUG -
+    //printf("starter snake: ");                                              // DEBUG -
+    //starter_snake();                                                        // make a 3 segment baby snake
+    //print_snake();                                                          // DEBUG - SHOWS SNAKE DATA STRUCTURE WORKS
+    //printf("\n");                                                           // DEBUG -
 
     /* initialize snake pit */
-    init_pit_border(grid);                                                  // initilize pit
-    update(grid, head);                                                     // will prolly take in a trophy arg too at some point
+    init_pit_border(grid);                                                  // initialize pit
+    update(grid);                                                     // will prolly take in a trophy arg too at some point
 
     /* get user input */
-    get_movement_input();
+    //get_movement_input();
 
     /* TODO: Figure out how to match user input up with updating the snake and snake pit */
 
-    /* logic */
-
+    /* end game, return to saved settings */
+    tty_mode(1);
 }
 
 /***********************************************************************************************************************
@@ -139,15 +141,26 @@ int main(){
  *  Returns: grid matrix printed to terminal
  */
 void init_pit_border(char array[window_row-1][window_col-1]){
-    /* draw window border */
-    for(int i = 0; i < window_row; i++){
+    /* place border tokens in appropriate cells */
+    for(int i = 0; i < window_row-2; i++){
         for(int j = 0; j < window_col; j++){
-            if (i == 0 || i == window_row-1)
+            if (i == 0 || i == window_row-3)
                 array[i][j] = 'X';
             else if(j == 0 || j == window_col-1)
                 array[i][j] = 'X';
             else
                 array[i][j] = ' ';
+        }
+    }
+
+    /* print border to terminal */
+    printf("Welcome to Snake\tScore: %d\tPress Ctrl-C to exit.\n", score);    // name of game, score, space for user inputs
+    /* scanner object to scan snake and print to screen */
+    struct node* scanner = head;
+    /* draw game tokens */
+    for(int i = 0; i < window_row-2; i++){
+        for(int j = 0; j < window_col; j++){
+            printf("%c", array[i][j]);
         }
     }
 }
@@ -183,16 +196,8 @@ void pit_size(){
  *  Input: game board, snake, (trophies when coded)
  *  Returns: updated game grid
  */
-void update(char array[window_row-1][window_col-1], struct node snake){
-    printf("Welcome to Snake\tScore: %d\tUser input here: \n", score);    // name of game, score, space for user inputs
-    /* scanner object to scan snake and print to screen */
-    struct node* scanner = head;
-    /* draw game tokens */
-    for(int i = 0; i < window_row; i++){
-        for(int j = 0; j < window_col; j++){
-                printf("%c", array[i][j]);
-        }
-    }
+void update(char array[window_row-1][window_col-1]){
+
 }
 
 /*
@@ -344,7 +349,7 @@ void set_settings() {
     settings.c_lflag   &= ~ICANON; /* No buffering */
     settings.c_lflag   &= ~ECHO; /* Turn off echo. */
     settings.c_cc[VMIN] = 1; /* get 1 char at a time */
-    tcsetattr(STDIN_FD, TCSANOW, &settings);
+    tcsetattr(0, TCSANOW, &settings);
 }
 
 /*
@@ -363,13 +368,13 @@ void set_nodelay_mode() {
  * Filters out invalid characters, only returning when a valid character is pressed.
 */
 int get_valid_input() {
-    int c;
-    while((c=getchar()) != EOF && strchr("wasd", c) == NULL) { // Get user input using getchar, then skip illegal characters using strchr.
-        //return c;                                               // Jacob: " smart! doesn't compile for me though return has to be outsode while loop.
+    // read a character from stdscr, which is only receiving one input at a time.
+    int c = getch();
+    if ((c=getchar()) != EOF && strchr("wasd", c) == NULL) { // Get user input using getchar, then skip illegal characters using strchr.
+        return c;
+    } else {
+        return -1;
     }
-    return c;
-
-    /* TODO: refactor this to compile */
 }
 
 /*
@@ -379,16 +384,24 @@ int get_valid_input() {
  * 3  = Down
  * 4  = Right
  */
-int get_movement_input() {
-    int input;
-    while(1) {
-        switch(input = tolower(get_valid_input())) {
-            case 'w': return 1;
-            case 'a': return 2;
-            case 's': return 3;
-            case 'd': return 4;
-        }
+int get_movement_input(int c) {
+    int input = tolower(get_valid_input());
+    int output = -1;
+    switch(input) {
+        case 'w':
+            output = 1;
+            break;
+        case 'a':
+            output = 2;
+            break;
+        case 's':
+            output = 3;
+            break;
+        case 'd':
+            output = 4;
+            break;
     }
+    return output;
 }
 
 /*
