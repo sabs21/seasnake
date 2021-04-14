@@ -14,9 +14,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <string.h>
+#include <ctype.h>
 #include <ncurses.h>
 
 #define INFO_ROW 1
+#define STDIN_FD 0
 
 /** prototypes **/
 /* RE: snake pit */
@@ -31,6 +38,13 @@ void print_snake();
 
 /* RE: logic */
 char choose_random_direction();
+
+/* RE: Input */
+void tty_mode (int action);
+void set_settings();
+void set_nodelay_mode();
+int get_movement_input();
+void end_snake(int signum);
 
 /** statics, structs, and constants **/
 /* window dimensions*/
@@ -82,6 +96,13 @@ int main(){
     time_t t;
     srand((unsigned) time(NULL));
 
+    /* Manage terminal settings */
+    tty_mode(0); // Save original settings
+    signal(SIGINT, end_snake); // Revert to original settings on program termination
+    signal(SIGQUIT, SIG_IGN);
+    set_settings(); // Set terminal settings for the program.
+    set_nodelay_mode(); /* I'm not sure if this is , but I'm keeping it here for now just in case. */
+
     /* set window grid */
     pit_size();                                                             // get/set dimensions of window
     char grid[window_row][window_col];                                      // initialize game dimensions
@@ -96,14 +117,14 @@ int main(){
     init_pit_border(grid);                                                  // initilize pit
     update(grid, head);                                                     // will prolly take in a trophy arg too at some point
 
+    /* get user input */
+    get_movement_input();
+
+    /* TODO: Figure out how to match user input up with updating the snake and snake pit */
+
     /* logic */
 
 }
-
-/*
- *  MAIN TODO:
- *  1.
- */
 
 /***********************************************************************************************************************
 *  SNAKE PIT                                                                                                           *
@@ -283,3 +304,97 @@ char choose_random_direction(){
  *  1. create a random function, returns char for direction - DONE
  *  2.
  */
+
+/***********************************************************************************************************************
+*  INPUT                                                                                                               *
+***********************************************************************************************************************/
+/*
+ * Saves the original terminal settings.
+ * This is useful for when we want to revert to the original settings when the user exits this program.
+ * PARAMS:
+ * action is an integer which governs whether the original settings are saved or loaded. 0 means to save, 1 means to load.
+ */
+void tty_mode (int action) {
+    static struct termios original_settings;
+    static int original_flags;
+    static int stored = 0;
+    if (action == 0) {
+        // Save the original terminal settings
+        tcgetattr(STDIN_FD, &original_settings);
+        original_flags = fcntl(STDIN_FD, F_GETFL);
+        stored = 1;
+    }
+    else if (stored) {
+        // Restore the original terminal settings
+        tcsetattr(STDIN_FD, TCSANOW, &original_settings);
+        fcntl(0, F_SETFL, original_flags);
+    }
+}
+
+/*
+ * Set terminal driver settings.
+ */
+void set_settings() {
+    struct termios settings;
+    int result = tcgetattr(STDIN_FD, &settings); /* Read values from driver */
+    if (result == -1) {
+        perror("Unable to get values from stdin via tcgetattr");
+        exit(1);
+    }
+    settings.c_lflag   &= ~ICANON; /* No buffering */
+    settings.c_lflag   &= ~ECHO; /* Turn off echo. */
+    settings.c_cc[VMIN] = 1; /* get 1 char at a time */
+    tcsetattr(STDIN_FD, TCSANOW, &settings);
+}
+
+/*
+ * Converts I/O into non-blocking mode.
+ * Turns on nodelay mode by using fcntl.
+ * I'm uncertain if we need this, but I'm keeping the function here just in case.
+ */
+void set_nodelay_mode() {
+    int termflags;
+    termflags = fcntl(STDIN_FD, F_GETFL);
+    termflags |= O_NDELAY;
+    fcntl(STDIN_FD, F_SETFL, termflags);
+}
+
+/*
+ * Filters out invalid characters, only returning when a valid character is pressed.
+*/
+int get_valid_input() {
+    int c;
+    while((c=getchar()) != EOF && strchr("wasd", c) == NULL) { // Get user input using getchar, then skip illegal characters using strchr.
+        //return c;                                               // Jacob: " smart! doesn't compile for me though return has to be outsode while loop.
+    }
+    return c;
+
+    /* TODO: refactor this to compile */
+}
+
+/*
+ * Translates WASD key inputs into integer values.
+ * 1  = Up
+ * 2  = Left
+ * 3  = Down
+ * 4  = Right
+ */
+int get_movement_input() {
+    int input;
+    while(1) {
+        switch(input = tolower(get_valid_input())) {
+            case 'w': return 1;
+            case 'a': return 2;
+            case 's': return 3;
+            case 'd': return 4;
+        }
+    }
+}
+
+/*
+ * This is the function which runs when the user terminates the program.
+ */
+void end_snake(int signum) {
+    tty_mode(1);
+    exit(1);
+}
