@@ -25,6 +25,12 @@
 #define INFO_ROW 1
 #define STDIN_FD 0
 
+/* Statistics cursor positions */
+#define CLOCK_POS 28
+#define TICK_POS 46
+#define DIRECTION_POS 64
+#define LAST_PRESSED_POS 88
+
 /** prototypes **/
 /* RE: snake pit */
 void pit_size();
@@ -60,6 +66,9 @@ static char move_down = 's';
 static char move_left = 'a';
 static char move_right = 'd';
 
+/* timing */
+struct timespec speed, rem; // speed governs the rate at which the screen refreshes. rem is unused, but will hold the time saved from the user's interupt signal
+
 /*
  * -- STRUCT NODE --
  * structure defining node of link list that will represent the list
@@ -91,10 +100,16 @@ struct node *tail = NULL;
  *  Returns: interactive game on terminal
  */
 int main(){
-
     /* Initialize global random number generator */
-    time_t t;
     srand((unsigned) time(NULL));
+
+    /* Manage terminal settings */
+    tty_mode(0); // Save original settings
+    signal(SIGINT, end_snake); // Revert to original settings on program termination
+    signal(SIGQUIT, SIG_IGN);
+    set_settings(); // Set terminal settings for the program.
+    set_nodelay_mode(); // Setting this prevents getch() from blocking the program for input.
+
     /* start curses, set settings */
     initscr();
     /* clear screen */
@@ -103,10 +118,103 @@ int main(){
     pit_size();
     /* draw the border */
     init_pit_border(window_col, window_row);
-    /* send tokens for border from buffer to terminal */
-    refresh();
+
+    /* setup the sleep timer */
+    speed.tv_sec = 0;
+    speed.tv_nsec = 50000000;   // 0.05 seconds in nanoseconds
+
+    int ticks = 0;              // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 time unit.
+    int timeUnit = 10;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
+
+    // For debugging purposes. 
+    int gameTime = 0;           // Tracks how many iterations of the while loop have been performed.
+    char gameTimeStr[6];        // Used to store gameTime as a string.
+    char key;                   // The key the user pressed.
+    char keyStr[4];             // Used to store key as a string.
+    char ticksStr[2];           // Used to store ticks as a string.
+
+    // The draw loop
+    while(1) {
+        // Wait for user inputs. If the user inputs nothing, then getch() returns an ERR. Break out of this loop when the user inputs something.
+        while ((key = getch()) == ERR) {
+            // Draw the current time elapsed
+            move(0, CLOCK_POS);
+            sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
+            addstr(gameTimeStr);
+
+            // Draw the current number of ticks
+            move(0, TICK_POS);
+            sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
+            addstr(ticksStr);
+
+            // Reset cursor position
+            move(window_row-1, window_col-1);
+
+            // Wait a half a second. This sleep does not block interrupts.
+            nanosleep(&speed, &rem);
+
+            /* send tokens for border from buffer to terminal */
+            refresh();
+            ticks++;
+
+            if (ticks % timeUnit == 0) {
+                // One time unit has passed. Increment time elapsed
+                gameTime++;
+                ticks = 0;
+            }
+        }
+
+        /* Handle user input */
+        if (key == 'w') {
+            // Draw the direction moved
+            move(0, DIRECTION_POS);
+            addstr("UP   ");
+        }
+        if (key == 'a') {
+            // Draw the direction moved
+            move(0, DIRECTION_POS);
+            addstr("LEFT ");
+        }
+        if (key == 's') {
+            // Draw the direction moved
+            move(0, DIRECTION_POS);
+            addstr("DOWN ");
+        }
+        if (key == 'd') {
+            // Draw the direction moved
+            move(0, DIRECTION_POS);
+            addstr("RIGHT");
+        }
+
+        /* Draw statistics */
+        // Draw the current time elapsed
+        move(0, CLOCK_POS);
+        sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
+        addstr(gameTimeStr);
+
+        // Draw the current number of ticks
+        move(0, TICK_POS);
+        sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
+        addstr(ticksStr);
+
+        // Draw the last key pressed
+        move(0, LAST_PRESSED_POS);
+        sprintf(keyStr, "%c", key); // Convert the key char into a string.
+        addstr(keyStr);
+
+        // Reset cursor position
+        move(window_row-1, window_col-1);
+
+        /* send tokens for border from buffer to terminal */
+        refresh();
+
+        // Since the player has moved, advance forward in time.
+        gameTime++;
+        ticks = 0;
+    }
+    
     /* wait for user input */
-    getch();
+    //getch();
 
     /** put starter snake on screen
      *  convert '0' snake token to string "0", addstr(token) to screen
@@ -120,8 +228,8 @@ int main(){
      *
      */
 
-    /* end of game, return to default terminal settings */
-    endwin();
+    /* end of game, terminate curses window */
+    //endwin();
 }
 
 /***********************************************************************************************************************
@@ -137,7 +245,7 @@ int main(){
  *  Returns: grid matrix printed to terminal
  */
 void init_pit_border(int x, int y) {
-    addstr("Welcome to Snake\tPress Ctrl-C to exit.\n");    // name of game, score, space for user inputs
+    addstr("Welcome to Snake  |  Clock: ------  |  Ticks: --  |  Direction: -----  |  Last Pressed: -  |  Press Ctrl-C to exit.\n");    // name of game, score, space for user inputs
     /* place border tokens in appropriate cells */
     for (int i = 1; i < y; i++) {
         for (int j = 0; j < x-1; j++) {
@@ -285,44 +393,65 @@ char choose_random_direction(){
  */
 
 /***********************************************************************************************************************
-*  INPUT                                                                                                               *
+*  TERMINAL SETTINGS                                                                                                   *
 ***********************************************************************************************************************/
+
 /*
- * Filters out invalid characters, only returning when a valid character is pressed.
-*/
-int get_valid_input() {
-    // read a character from stdscr, which is only receiving one input at a time.
-    int c = getch();
-    if ((c=getchar()) != EOF && strchr("wasd", c) == NULL) { // Get user input using getchar, then skip illegal characters using strchr.
-        return c;
-    } else {
-        return -1;
+ * Saves the original terminal settings.
+ * This is useful for when we want to revert to the original settings when the user exits this program.
+ * PARAMS:
+ * action is an integer which governs whether the original settings are saved or loaded. 0 means to save, 1 means to load.
+ */
+void tty_mode (int action) {
+    static struct termios original_settings;
+    static int original_flags;
+    static int stored = 0;
+    if (action == 0) {
+        // Save the original terminal settings
+        tcgetattr(STDIN_FD, &original_settings);
+        original_flags = fcntl(STDIN_FD, F_GETFL);
+        stored = 1;
+    }
+    else if (stored) {
+        // Restore the original terminal settings
+        tcsetattr(STDIN_FD, TCSANOW, &original_settings);
+        fcntl(0, F_SETFL, original_flags);
     }
 }
 
 /*
- * Translates WASD key inputs into integer values.
- * 1  = Up
- * 2  = Left
- * 3  = Down
- * 4  = Right
+ * Set terminal driver settings.
  */
-int get_movement_input(int c) {
-    int input = tolower(get_valid_input());
-    int output = -1;
-    switch(input) {
-        case 'w':
-            output = 1;
-            break;
-        case 'a':
-            output = 2;
-            break;
-        case 's':
-            output = 3;
-            break;
-        case 'd':
-            output = 4;
-            break;
+void set_settings() {
+    struct termios settings;
+    int result = tcgetattr(STDIN_FD, &settings); /* Read values from driver */
+    if (result == -1) {
+        perror("Unable to get values from stdin via tcgetattr");
+        exit(1);
     }
-    return output;
+    settings.c_lflag   &= ~ICANON; /* No buffering */
+    settings.c_lflag   &= ~ECHO; /* Turn off echo. */
+    settings.c_cc[VMIN] = 1; /* get 1 char at a time */
+    tcsetattr(STDIN_FD, TCSANOW, &settings);
 }
+
+/*
+ * Converts I/O into non-blocking mode.
+ * Turns on nodelay mode by using fcntl.
+ * I'm uncertain if we need this, but I'm keeping the function here just in case.
+ */
+void set_nodelay_mode() {
+    int termflags;
+    termflags = fcntl(STDIN_FD, F_GETFL);
+    termflags |= O_NDELAY;
+    fcntl(STDIN_FD, F_SETFL, termflags);
+}
+
+/*
+ * This is the function which runs when the user terminates the program.
+ */
+void end_snake(int signum) {
+    endwin();       // Terminate curses window
+    tty_mode(1);    // Restore terminal settings
+    exit(1);        // End the program
+} 
