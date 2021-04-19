@@ -41,9 +41,11 @@ void eat_fruit(int y, int x);
 void init_snake(int y, int x, char direction);
 void move_snake();
 void shorten_tail();
+void auto_move();
 
 /* RE: logic */
 char choose_random_direction();
+void time_event();
 
 /* RE: Input */
 void tty_mode (int action);
@@ -60,6 +62,9 @@ static int window_col;
 /* game stats */
 static int score = 0;
 static int snake_len = 3;
+static int gameTime = 0;           // Tracks how many iterations of the while loop have been performed.
+static char key = 'd';
+
 
 /* snake head location */
 int head_y = 5;
@@ -131,19 +136,19 @@ int main(){
     int timeUnit = 10;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
 
     // For debugging purposes. 
-    int gameTime = 0;           // Tracks how many iterations of the while loop have been performed.
+    //int gameTime = 0;           // Tracks how many iterations of the while loop have been performed.
     char gameTimeStr[6];        // Used to store gameTime as a string.
-    char key = 'd';                   // The key the user pressed.
+    char input = 'd';             // The key the user pressed.
     char keyStr[4];             // Used to store key as a string.
     char ticksStr[2];           // Used to store ticks as a string.
 
-    init_snake(head_y, head_x, 'd');
+    init_snake(head_y, head_x, key);
 
     // The draw loop
     while(1) {
         noecho();
         // Wait for user inputs. If the user inputs nothing, then getch() returns an ERR. Break out of this loop when the user inputs something.
-        while ((key = getch()) == ERR) {
+        while ((input = getch()) == ERR) {
             // Draw the current time elapsed
             move(0, CLOCK_POS);
             sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
@@ -166,38 +171,29 @@ int main(){
 
             if (ticks % timeUnit == 0) {
                 // One time unit has passed. Increment time elapsed
-                gameTime++;
+                time_event(key);
                 ticks = 0;
             }
         }
-
         // Handle user input
-        if (key == 'w') {
+        if (input == 'w') {
             // Draw the direction moved
-            move_snake(head->row-1, head->column);
-            move(head->row, head->column);
             move(0, DIRECTION_POS);
             addstr("UP   ");
 
         }
-        if (key == 'a') {
+        if (input == 'a') {
             // Draw the direction moved
-            move_snake(head->row, head->column-1);
-            move(head->row, head->column);
             move(0, DIRECTION_POS);
             addstr("LEFT ");
         }
-        if (key == 's') {
+        if (input == 's') {
             // Draw the direction moved
-            move_snake(head->row+1, head->column);
-            move(head->row, head->column);
             move(0, DIRECTION_POS);
             addstr("DOWN ");
         }
-        if (key == 'd') {
+        if (input == 'd') {
             // Draw the direction moved
-            move_snake(head->row, head->column+1);
-            move(head->row, head->column);
             move(0, DIRECTION_POS);
             addstr("RIGHT");
         }
@@ -222,9 +218,12 @@ int main(){
         refresh();
 
         // Since the player has moved, advance forward in time.
+        if (input == 'a' || input == 'w' || input == 'd' || input == 's') {
+            key = input;
+        }
         gameTime++;
+        //time_event(key);
         ticks = 0;
-
     }
     /* wait for user input */
     //getch();
@@ -433,6 +432,30 @@ void move_snake(int y, int x){
     refresh();
 }
 
+void auto_move(){
+    // Handle user input
+    if (key == 'w') {
+        // Draw the direction moved
+        move_snake(head->row-1, head->column);
+        move(head->row, head->column);
+    }
+    if (key == 'a') {
+        // Draw the direction moved
+        move_snake(head->row, head->column-1);
+        move(head->row, head->column);
+    }
+    if (key == 's') {
+        // Draw the direction moved
+        move_snake(head->row+1, head->column);
+        move(head->row, head->column);
+    }
+    if (key == 'd') {
+        // Draw the direction moved
+        move_snake(head->row, head->column+1);
+        move(head->row, head->column);
+    }
+}
+
 /***********************************************************************************************************************
 *  LOGIC
 *  1) random function for start direction
@@ -459,12 +482,11 @@ char choose_random_direction(){
         return 'x';
     }
 }
-
-/*
- *  LOGIC TODO:
- *  1. create a random function, returns char for direction - DONE
- *  2.
- */
+void time_event(){
+    gameTime++;
+    auto_move();
+    refresh();
+}
 
 /***********************************************************************************************************************
 *  TERMINAL SETTINGS                                                                                                   *
