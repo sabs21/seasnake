@@ -37,9 +37,10 @@ void pit_size();
 void init_pit_border();
 
 /* RE: snake */
-void starter_snake();
-void eat_fruit();
-void print_snake();
+void eat_fruit(int y, int x);
+void init_snake(int y, int x, char direction);
+void move_snake();
+void shorten_tail();
 
 /* RE: logic */
 char choose_random_direction();
@@ -59,6 +60,10 @@ static int window_col;
 /* game stats */
 static int score = 0;
 static int snake_len = 3;
+
+/* snake head location */
+int head_y = 5;
+int head_x = 10;
 
 /* logic */
 static char move_up = 'w';
@@ -81,9 +86,8 @@ struct timespec speed, rem; // speed governs the rate at which the screen refres
 struct node{
     int row;
     int column;
-    char token;
-    char direction;                 // valid direction: w, a, s, d
     struct node *prev;
+    struct node *next;
 };
 
 /* head of snake */
@@ -129,12 +133,15 @@ int main(){
     // For debugging purposes. 
     int gameTime = 0;           // Tracks how many iterations of the while loop have been performed.
     char gameTimeStr[6];        // Used to store gameTime as a string.
-    char key;                   // The key the user pressed.
+    char key = 'd';                   // The key the user pressed.
     char keyStr[4];             // Used to store key as a string.
     char ticksStr[2];           // Used to store ticks as a string.
 
+    init_snake(head_y, head_x, 'd');
+
     // The draw loop
     while(1) {
+        noecho();
         // Wait for user inputs. If the user inputs nothing, then getch() returns an ERR. Break out of this loop when the user inputs something.
         while ((key = getch()) == ERR) {
             // Draw the current time elapsed
@@ -153,7 +160,7 @@ int main(){
             // Wait a half a second. This sleep does not block interrupts.
             nanosleep(&speed, &rem);
 
-            /* send tokens for border from buffer to terminal */
+            // send tokens for border from buffer to terminal
             refresh();
             ticks++;
 
@@ -164,29 +171,38 @@ int main(){
             }
         }
 
-        /* Handle user input */
+        // Handle user input
         if (key == 'w') {
             // Draw the direction moved
+            move_snake(head->row-1, head->column);
+            move(head->row, head->column);
             move(0, DIRECTION_POS);
             addstr("UP   ");
+
         }
         if (key == 'a') {
             // Draw the direction moved
+            move_snake(head->row, head->column-1);
+            move(head->row, head->column);
             move(0, DIRECTION_POS);
             addstr("LEFT ");
         }
         if (key == 's') {
             // Draw the direction moved
+            move_snake(head->row+1, head->column);
+            move(head->row, head->column);
             move(0, DIRECTION_POS);
             addstr("DOWN ");
         }
         if (key == 'd') {
             // Draw the direction moved
+            move_snake(head->row, head->column+1);
+            move(head->row, head->column);
             move(0, DIRECTION_POS);
             addstr("RIGHT");
         }
-
-        /* Draw statistics */
+        refresh();
+        // Draw statistics
         // Draw the current time elapsed
         move(0, CLOCK_POS);
         sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
@@ -202,17 +218,14 @@ int main(){
         sprintf(keyStr, "%c", key); // Convert the key char into a string.
         addstr(keyStr);
 
-        // Reset cursor position
-        move(window_row-1, window_col-1);
-
-        /* send tokens for border from buffer to terminal */
+        // send tokens for border from buffer to terminal
         refresh();
 
         // Since the player has moved, advance forward in time.
         gameTime++;
         ticks = 0;
+
     }
-    
     /* wait for user input */
     //getch();
 
@@ -297,7 +310,7 @@ void pit_size(){
 *  2) debug snake
 ***********************************************************************************************************************/
 /*
- * 1) eat_fruit()
+ * 1) eat_fruit(), eg add node to head
  * Purpose: grows snake
  * Method: call eat_fruit() when head collides with fruit
  * Input: none
@@ -313,52 +326,113 @@ void pit_size(){
  *      c. HEAD always points to front, new nodes always added to head.
  *      d. only can scan from one direction, from head to tail.
  */
-void eat_fruit(int col, int row){
+void eat_fruit(int y, int x){
     /* A) create a pointer of new node to add */
     struct node *new_head = (struct node*)malloc(sizeof(struct node));
-    new_head->token = 'O';
-    new_head->column = col;
-    new_head->row = row;
-
+    new_head->row = y;
+    new_head->column = x;
     /* B) add new node to head of LL */
-    if (head == NULL) {
+    if (head == NULL) {                     // list is empty, first item becomes head and tail remains
         head = new_head;
-        head -> prev = tail;
-        return;
-    } else {
+        head->prev = tail;
+    }
+    if (tail == NULL) {                     // list only has one item (the head), second becomes the tail
+        tail = head;
+        tail->next = new_head;
+        head = new_head;
+        head->prev = tail;
+    }
+    if (tail && head != NULL){
+        head->next = new_head;
         new_head -> prev = head;
         head = new_head;
     }
 }
-
-/* 2) starter_snake()
+/* 2) remove_tail(), remove node from tail
 *  Purpose: initializes baby snake for game
 *  Method: call before initializing game
 *  Input: none
 *  Returns: LL with new length 3.
 */
-void starter_snake() {
-    int x = 10;
-    int y = 10;
-    for (int i = 0; i < 3; i++){
-        eat_fruit(x, y);
-        x--;
-        y--;
-    }
+void shorten_tail(){
+    // delete tail on screen
+    move(tail->row, tail->column);
+    addstr(" ");
+    // save coordinates of new tail
+    int node_y = tail->next->row;
+    int node_x = tail->next->column;
+    // set pointer to new tail
+    tail = tail->next;
+    // set coordinates to new tail
+    tail->row = node_y;
+    tail->column = node_x;
 }
-/* 3) print_snake()
-*  Purpose: test and debug snake data structure
-*  Method: call for debugging
+
+/* 3) starter_snake()
+*  Purpose: initializes baby snake for game
+*  Method: call before initializing game
 *  Input: none
-*  Returns: a printed snake
+*  Returns: LL with new length 3.
 */
-void print_snake() {
+void init_snake(int y, int x, char direction){
+    /* create starter snake */
+    int node_y = y;
+    int node_x = x;
+    eat_fruit(node_y, node_x);
+    for(int i = 0; i < 4; i++) {
+        if (direction == 'w') {
+            node_y = node_y - 1;
+        } else if (direction == 's') {
+            node_y = node_y + 1;
+        } else if (direction == 'a') {
+            node_x = node_x + 1;
+        } else if (direction == 'd') {
+            node_x = node_x - 1;
+        }
+        eat_fruit(node_y,node_x);
+        // eatfruit will handle pointers, handle tail coordinates here.
+        tail->row = node_y;
+        tail->column = node_x;
+    }
+    /* print starter snake */
     struct node* scanner = head;
-    while(scanner != NULL) {
-        printf("%c", scanner->token);
+    while(scanner != tail) {
+        move(scanner->row,scanner->column);
+        addstr("o");
         scanner = scanner->prev;
     }
+    // reset head coordinates after scanning linked list.
+    head->row = y;
+    head->column = x;
+    // draw snake head
+    addstr("O");
+    refresh();
 }
+
+void move_snake(int y, int x){
+    // add segment to head
+    eat_fruit(y, x);
+    // remove from tail
+    shorten_tail();
+    // save original location of head
+    int save_y = head->row;
+    int save_x = head->column;
+    // scan through snake printing tokens
+    struct node* scanner = head;
+    while(scanner != tail) {
+        move(scanner->row,scanner->column);
+        addstr("o");
+        scanner = scanner->prev;
+    }
+    // reset head of snake
+    head->row = save_y;
+    head->column = save_x;
+    // move cursor back to head of snake
+    move(head->row,head->column);
+    addstr("O");
+    refresh();
+}
+
 /***********************************************************************************************************************
 *  LOGIC
 *  1) random function for start direction
