@@ -550,4 +550,5 @@ void end_snake(int signum) {
     endwin();       // Terminate curses window
     tty_mode(1);    // Restore terminal settings
     exit(1);        // End the program
-} 
+}
+
