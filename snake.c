@@ -112,10 +112,10 @@ struct node *tail = NULL;
  *  Returns: interactive game on terminal
  */
 int main(){
-    /* Initialize global random number generator */
+    /* Initialize global random number generator by Nick Sabia */
     srand((unsigned) time(NULL));
 
-    /* Manage terminal settings */
+    /* Manage terminal settings by Nick Sabia */
     tty_mode(0); // Save original settings
     signal(SIGINT, end_snake); // Revert to original settings on program termination
     signal(SIGQUIT, SIG_IGN);
@@ -135,7 +135,7 @@ int main(){
     /* set random initial direction */
     key = choose_random_direction();
 
-    /* setup the sleep timer */
+    /* setup the sleep timer by Nick Sabia*/
     speed.tv_sec = 0;
     speed.tv_nsec = 50000000;   // 0.05 seconds in nanoseconds
 
@@ -148,7 +148,7 @@ int main(){
     char keyStr[4];             // Used to store key as a string.
     char ticksStr[2];           // Used to store ticks as a string.
 
-    /* use key pad */
+    /* use key pad  by Mateusz Mirga   */
     keypad(stdscr,TRUE);        //Handel arrow input MM
 
     /* init snake of size 3 */
@@ -246,8 +246,7 @@ int main(){
 /***********************************************************************************************************************
 *  SNAKE PIT                                                                                                           *
 *  1. draw_pit_border                                                                                                  *
-*  2. pit_size                                                                                                         *
-*  3. update                                                                                                           *
+*  2. pit_size                                                                                                         *                                                                                                        *
 ***********************************************************************************************************************/
 /*
  *  1. init_pit_border()
@@ -293,36 +292,33 @@ void pit_size(){
     }
 }
 
-/*
- *  PIT TODO:
- *  1. update will need parameters for snake and trophies DONE-ISH
- *  2. now will need to code trophies and pass snake and trophies in, updating the board somehow
- */
 /***********************************************************************************************************************
 *  SNAKE
+*  by Jacob Pelletier
 *  Use structure to represent node
 *  Nodes used to represent a linked list
 *  Nodes are only added to the head and nodes are never removed.
 *  1) grow snake
- * 2) create baby snake
-*  2) debug snake
+*  2) shorten snake
+*  3) create baby snake
+*  4) move snake - handles printing tokens and pointers
+*  5) auto move - handles snake coordinates and directionality
 ***********************************************************************************************************************/
 /*
  * 1) eat_fruit(), eg add node to head
  * Purpose: grows snake
  * Method: call eat_fruit() when head collides with fruit
  * Input: none
- * Returns: LL with new length of +1.
+ * Returns: doubly linked list with new length of +1.
  *
  * A) create a new node
  * B) add new node to head of LL
  *
  * THE DATA STRUCTURE:
- *      TAIL <-- NODE <-- HEAD where
- *      a. TAIL always == to NULL indicating end of snake,
+ *      TAIL <--> NODE <--> HEAD where
+ *      a. TAIL contains last element, contains NULL only with <=2 nodes.
  *      b. NODE are middle snake segments,
  *      c. HEAD always points to front, new nodes always added to head.
- *      d. only can scan from one direction, from head to tail.
  */
 void eat_fruit(int y, int x){
     /* A) create a pointer of new node to add */
@@ -397,7 +393,15 @@ void init_snake(int y, int x, char direction){
     head->column = x;
 }
 
-
+/* 4) move_snake()
+*  Purpose: takes in two coordinate arguments, creates a new head node
+*  Method: adjusts pointers as appropriate for moving snake forward one direction
+*       - ONLY handles pointers and printing tokens. NOTE that auto-move handles directionality and coordinates
+ *      - illusion of movement created by lengthening head while simultaneously shortening tail.
+ *      - NOTE: no net addition of nodes occurs.
+*  Input: int y coordinate and int x coordinate
+*  Returns: a snake whose tokens represent movement
+*/
 void move_snake(int y, int x){
     // add segment to head
     eat_fruit(y, x);
@@ -421,9 +425,15 @@ void move_snake(int y, int x){
     addstr("O");
     refresh();
 }
-
+/* 4) auto_move()
+*  Purpose: moves snake depending on value of key (current direction of snake).
+*  Method: provides move with new y,x coordinates with which to move snake.
+*       - ONLY handles coordinates of head node, dependent on key value. NOTE that auto-move pointers and printing
+*  Input: none
+*  Returns: a snake which appears to move depending on key value. meant to occur each second until win or lose condition
+*/
 void auto_move(){
-    // Handle user input
+    /* Handle user input */
     if (key == 'w') {
         // Draw the direction moved
         move_snake(head->row-1, head->column);
@@ -444,17 +454,19 @@ void auto_move(){
         move_snake(head->row, head->column+1);
         move(head->row, head->column);
     }
+
     /* check for border collisions */
     if (head->row == 1 || head->row == LINES-1 || head->column == 0 || head->column == COLS-2){
         game_condition(1);
     }
+
     /* check for running into itself */
     // save head coordinates before scan
 }
 
 /***********************************************************************************************************************
 *  LOGIC
-*  1) random function for start direction
+*  1) random function for start direction by Nick Sabia
 *  2) check for collision with wall or fruit with each movement
  * 3) another random function for randomly placing trophies
 ***********************************************************************************************************************/
@@ -462,7 +474,7 @@ void auto_move(){
  *  1. choose_random_direction()
  *  Purpose: return a random direction to start snake in
  *  Method: call update() after user input
- *  Returns: updated game grid
+ *  Returns: char of random direction determined.
  */
 char choose_random_direction(){
     int random_integer = rand() % 4; // DETERMINE RANDOM NUMBER BETWEEN 0 AND 3
@@ -478,9 +490,15 @@ char choose_random_direction(){
         return 'x';
     }
 }
+/*
+ *  2. game_condition(int option)
+ *  Purpose: return target game condition determined by option
+ *  Method: call game_condition with argument; 1 = wall collision, 2 = reversal, 3 = run into self, 4 = user end
+ *  Returns: end of program with comment
+ */
 void game_condition(int option){
     switch(option) {
-        // border collisions
+        /* border collisions */
         case(1):
             move(window_row / 2, window_col / 2);
             addstr("YOU GOOFED!\tYou hit the wall.");
@@ -488,7 +506,7 @@ void game_condition(int option){
             sleep(2);
             raise(SIGINT);
             break;
-        // direction reversal
+        /* direction reversal */
         case(2):
             move(window_row / 2, window_col / 2);
             addstr("YOU GOOFED!\tYou reversed direction.");
@@ -496,7 +514,7 @@ void game_condition(int option){
             sleep(2);
             raise(SIGINT);
             break;
-        // run into itself
+        /* run into itself */
         case(3):
             move(window_row / 2, window_col / 2);
             addstr("YOU GOOFED!\tYou bit yourself.");
@@ -504,7 +522,7 @@ void game_condition(int option){
             sleep(2);
             raise(SIGINT);
             break;
-        // user exit
+        /* user exit */
         case(4):
             move(window_row / 2, window_col / 2);
             addstr("Good Bye.");
@@ -514,7 +532,12 @@ void game_condition(int option){
             break;
     }
 }
-
+/*
+ *  3. time_event()
+ *  Purpose: increment gameTime and move snake, occurs every second.
+ *  Method: call each second of gameplay and w/ user input
+ *  Returns: snake will move on screen, gameTime will increment.
+ */
 void time_event(){
     gameTime++;
     auto_move();
@@ -522,7 +545,8 @@ void time_event(){
 }
 
 /***********************************************************************************************************************
-*  TERMINAL SETTINGS                                                                                                   *
+*  TERMINAL SETTINGS
+*  by Nick Sabia
 ***********************************************************************************************************************/
 
 /*
