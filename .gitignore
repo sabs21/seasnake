@@ -1,0 +1,6 @@
+/.idea
+*.out
+/seasnake
+/snake
+!/seasnake.c
+!/snake.c
