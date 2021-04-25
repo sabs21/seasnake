@@ -136,9 +136,9 @@ int main(){
     int timeUnit = 10;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
 
     // For debugging purposes. 
-    //int gameTime = 0;           // Tracks how many iterations of the while loop have been performed.
+    //int gameTime = 0;         // Tracks how many iterations of the while loop have been performed.
     char gameTimeStr[6];        // Used to store gameTime as a string.
-    char input = 'd';             // The key the user pressed.
+    //char input = 'd';           // The key the user pressed.
     char keyStr[4];             // Used to store key as a string.
     char ticksStr[2];           // Used to store ticks as a string.
 
@@ -148,7 +148,7 @@ int main(){
     while(1) {
         noecho();
         // Wait for user inputs. If the user inputs nothing, then getch() returns an ERR. Break out of this loop when the user inputs something.
-        while ((input = getch()) == ERR) {
+        while ((key = getch()) == ERR) {
             // Draw the current time elapsed
             move(0, CLOCK_POS);
             sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
@@ -176,23 +176,22 @@ int main(){
             }
         }
         // Handle user input
-        if (input == 'w') {
+        if (key == 'w') {
             // Draw the direction moved
             move(0, DIRECTION_POS);
             addstr("UP   ");
-
         }
-        if (input == 'a') {
+        if (key == 'a') {
             // Draw the direction moved
             move(0, DIRECTION_POS);
             addstr("LEFT ");
         }
-        if (input == 's') {
+        if (key == 's') {
             // Draw the direction moved
             move(0, DIRECTION_POS);
             addstr("DOWN ");
         }
-        if (input == 'd') {
+        if (key == 'd') {
             // Draw the direction moved
             move(0, DIRECTION_POS);
             addstr("RIGHT");
@@ -218,9 +217,9 @@ int main(){
         refresh();
 
         // Since the player has moved, advance forward in time.
-        if (input == 'a' || input == 'w' || input == 'd' || input == 's') {
-            key = input;
-        }
+        //if (input == 'a' || input == 'w' || input == 'd' || input == 's') {
+        //    key = input;
+        //}
         gameTime++;
         //time_event(key);
         ticks = 0;

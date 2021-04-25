@@ -64,7 +64,9 @@ static int window_col;
 /* game stats */
 static int score = 0;
 static int snake_len = 3;
-static int gameTime = 0;           // Tracks how many iterations of the while loop have been performed.
+static int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
+static int ticks = 0;               // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
+static int timeUnit = 10;           // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
 static char key;
 static int mode = 1;                // 1 = true, 0 = false
 
@@ -139,12 +141,8 @@ int main(){
     speed.tv_sec = 0;
     speed.tv_nsec = 50000000;   // 0.05 seconds in nanoseconds
 
-    int ticks = 0;              // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 time unit.
-    int timeUnit = 10;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
-
-
     char gameTimeStr[6];        // Used to store gameTime as a string.
-    char input = 'd';             // The key the user pressed.
+    char input;                 // The key the user pressed.
     char keyStr[4];             // Used to store key as a string.
     char ticksStr[2];           // Used to store ticks as a string.
 
@@ -156,7 +154,7 @@ int main(){
 
     /* The draw loop */
     while(mode) {
-        noecho();
+        //noecho(); echo is already turned off when set_settings is called
         input = getch();
         // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
         switch (input) {
@@ -170,6 +168,7 @@ int main(){
                 move(0, DIRECTION_POS);
                 addstr("LEFT ");
                 key = 'a';
+                time_event();
                 break;
 
             case (char) KEY_DOWN:
@@ -182,7 +181,8 @@ int main(){
                 move(0, DIRECTION_POS);
                 addstr("DOWN ");
                 key = 's';
-                refresh();
+                time_event();
+                //refresh();
                 break;
 
             case (char) KEY_UP:
@@ -195,7 +195,8 @@ int main(){
                 move(0, DIRECTION_POS);
                 addstr("UP   ");
                 key = 'w';
-                refresh();
+                //refresh();
+                time_event();
                 break;
 
             case (char) KEY_RIGHT:
@@ -208,37 +209,40 @@ int main(){
                 move(0, DIRECTION_POS);
                 addstr("RIGHT");
                 key = 'd';
-                refresh();
+                //refresh();
+                time_event();
                 break;
             case ' ':
                 game_condition(4);
                 break;
             default:
-                // Draw the current time elapsed
-                move(0, CLOCK_POS);
-                sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
-                addstr(gameTimeStr);
+                break;
+        }
 
-                // Draw the current number of ticks
-                move(0, TICK_POS);
-                sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
-                addstr(ticksStr);
+        // Draw the current time elapsed
+        move(0, CLOCK_POS);
+        sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
+        addstr(gameTimeStr);
 
-                // Reset cursor position
-                move(window_row - 1, window_col - 1);
+        // Draw the current number of ticks
+        move(0, TICK_POS);
+        sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
+        addstr(ticksStr);
 
-                // Wait a half a second. This sleep does not block interrupts.
-                nanosleep(&speed, &rem);
-                ticks++;
+        // Reset cursor position
+        move(window_row - 1, window_col - 1);
 
-                // send tokens for border from buffer to terminal
-                refresh();
+        // Wait a half a second. This sleep does not block interrupts.
+        nanosleep(&speed, &rem);
+        ticks++;
 
-                if (ticks % timeUnit == 0) {
-                    // One time unit has passed. Increment time elapsed
-                    time_event(key);
-                    ticks = 0;
-                }
+        // send tokens for border from buffer to terminal
+        refresh();
+
+        if (ticks % timeUnit == 0) {
+            // One time unit has passed. Increment time elapsed
+            time_event(key);
+            ticks = 0;
         }
     }
 }
@@ -539,6 +543,7 @@ void game_condition(int option){
  *  Returns: snake will move on screen, gameTime will increment.
  */
 void time_event(){
+    ticks = 0;
     gameTime++;
     auto_move();
     refresh();
