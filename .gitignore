@@ -1,0 +1,6 @@
+/.idea
+/.vscode
+*.out
+/seasnake
+/snake
+!/snake.c
