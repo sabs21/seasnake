@@ -31,8 +31,11 @@
 /* Statistics cursor positions */
 #define CLOCK_POS 28
 #define TICK_POS 46
-#define DIRECTION_POS 64
-#define LAST_PRESSED_POS 88
+#define DIRECTION_POS 65
+#define LAST_PRESSED_POS 89
+
+/* Pause menu */
+#define PAUSE_MSG_LEN 32
 
 /** prototypes **/
 /* RE: snake pit */
@@ -66,11 +69,12 @@ static int window_col;
 /* game stats */
 static int score = 0;
 static int snake_len = 3;
-static int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
-static int ticks = 0;               // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
-static int timeUnit = 10;           // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
 static char key;
-static int mode = 1;                // 1 = true, 0 = false
+int mode = 0;                // 1 = true, 0 = false
+int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
+int ticks = 0;               // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
+int lastTick = -1;           // Used by the inner loop to prevent extra inputs from getting registered when they shouldn't be.
+int timeUnit = 128;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
 
 
 /* snake head location */
@@ -141,7 +145,8 @@ int main(){
 
     /* setup the sleep timer by Nick Sabia*/
     speed.tv_sec = 0;
-    speed.tv_nsec = 50000000;   // 0.05 seconds in nanoseconds
+    //speed.tv_nsec = 50000000;   // 0.05 seconds in nanoseconds
+    speed.tv_nsec = 781250; // 1/128th of a second in nanoseconds
 
     char gameTimeStr[6];        // Used to store gameTime as a string.
     char input;                 // The key the user pressed.
@@ -154,97 +159,131 @@ int main(){
     /* init snake of size 3 */
     init_snake(head_y, head_x, key);
 
-    /* The draw loop */
-    while(mode) {
-        //noecho(); echo is already turned off when set_settings is called
+    /* Print initial pause message */
+    move(window_row / 2, window_col / 2);
+    addstr("Press any key to start playing!");
+    move(window_row - 1, window_col - 1);
+
+    /* Send the first image from the buffer to terminal */
+    refresh();
+
+    /* Keeps the user in a paused state until they hit a button ~ Nick Sabia */
+    while (!mode) {
         input = getch();
-        // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
         switch (input) {
-            case (char) KEY_LEFT:
-            case 'a':
-                // Check for reversal:
-                if (key == 'd' || key == (char)KEY_RIGHT){
-                    game_condition(2);
-                }
-                // Draw the direction moved
-                move(0, DIRECTION_POS);
-                addstr("LEFT ");
-                key = 'a';
-                time_event();
-                break;
-
-            case (char) KEY_DOWN:
-            case 's':
-                // Check for reversal:
-                if (key == 'w' || key == (char)KEY_UP){
-                    game_condition(2);
-                }
-                // Draw the direction moved
-                move(0, DIRECTION_POS);
-                addstr("DOWN ");
-                key = 's';
-                time_event();
-                //refresh();
-                break;
-
-            case (char) KEY_UP:
-            case 'w':
-                // Check for reversal:
-                if (key == 's' || key == (char)KEY_DOWN){
-                    game_condition(2);
-                }
-                // Draw the direction moved
-                move(0, DIRECTION_POS);
-                addstr("UP   ");
-                key = 'w';
-                //refresh();
-                time_event();
-                break;
-
-            case (char) KEY_RIGHT:
-            case 'd':
-                // Check for reversal:
-                if (key == 'a' || key == (char)KEY_LEFT){
-                    game_condition(2);
-                }
-                // Draw the direction moved
-                move(0, DIRECTION_POS);
-                addstr("RIGHT");
-                key = 'd';
-                //refresh();
-                time_event();
-                break;
-            case ' ':
-                game_condition(4);
+            case ERR:
                 break;
             default:
+                mode = 1;
                 break;
         }
+    }
 
-        // Draw the current time elapsed
-        move(0, CLOCK_POS);
-        sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
-        addstr(gameTimeStr);
+    /* Erase initial pause message */
+    move(window_row / 2, window_col / 2);
+    addstr("                                ");
+    move(window_row - 1, window_col - 1);
 
-        // Draw the current number of ticks
-        move(0, TICK_POS);
-        sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
-        addstr(ticksStr);
+    /* The draw loop */
+    while (mode) {
+        /* 
+         * This inner loop prevents the snake from continuing quickly in a direction after a user stops pressing a directional key. 
+         * Without this loop, a lot of extra inputs would get registered that would lead to the snake barreling off into one direction,
+         * ignoring the user's attempt at slowing down or changing direction. ~ Nick Sabia
+        */
+        while(ticks != lastTick) {
+            // Set the lastTick equal to the current tick to show that there was a check for input.
+            lastTick = ticks;
+            //noecho(); echo is already turned off when set_settings is called
+            input = getch();
+            // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
+            switch (input) {
+                case (char) KEY_LEFT:
+                case 'a':
+                    // Check for reversal:
+                    if (key == 'd' || key == (char)KEY_RIGHT){
+                        game_condition(2);
+                    }
+                    // Draw the direction moved
+                    move(0, DIRECTION_POS);
+                    addstr("LEFT ");
+                    key = 'a';
+                    time_event();
+                    break;
 
-        // Reset cursor position
-        move(window_row - 1, window_col - 1);
+                case (char) KEY_DOWN:
+                case 's':
+                    // Check for reversal:
+                    if (key == 'w' || key == (char)KEY_UP){
+                        game_condition(2);
+                    }
+                    // Draw the direction moved
+                    move(0, DIRECTION_POS);
+                    addstr("DOWN ");
+                    key = 's';
+                    time_event();
+                    //refresh();
+                    break;
 
-        // Wait a half a second. This sleep does not block interrupts.
-        nanosleep(&speed, &rem);
-        ticks++;
+                case (char) KEY_UP:
+                case 'w':
+                    // Check for reversal:
+                    if (key == 's' || key == (char)KEY_DOWN){
+                        game_condition(2);
+                    }
+                    // Draw the direction moved
+                    move(0, DIRECTION_POS);
+                    addstr("UP   ");
+                    key = 'w';
+                    //refresh();
+                    time_event();
+                    break;
 
-        // send tokens for border from buffer to terminal
-        refresh();
+                case (char) KEY_RIGHT:
+                case 'd':
+                    // Check for reversal:
+                    if (key == 'a' || key == (char)KEY_LEFT){
+                        game_condition(2);
+                    }
+                    // Draw the direction moved
+                    move(0, DIRECTION_POS);
+                    addstr("RIGHT");
+                    key = 'd';
+                    //refresh();
+                    time_event();
+                    break;
+                case ' ':
+                    game_condition(4);
+                    break;
+                default:
+                    break;
+            }
 
-        if (ticks % timeUnit == 0) {
-            // One time unit has passed. Increment time elapsed
-            time_event(key);
-            ticks = 0;
+            // Draw the current time elapsed
+            move(0, CLOCK_POS);
+            sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
+            addstr(gameTimeStr);
+
+            // Draw the current number of ticks
+            move(0, TICK_POS);
+            sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
+            addstr(ticksStr);
+
+            // Reset cursor position
+            move(window_row - 1, window_col - 1);
+
+            // Wait a half a second. This sleep does not block interrupts.
+            nanosleep(&speed, &rem);
+            ticks++;
+
+            // send tokens for border from buffer to terminal
+            refresh();
+
+            if (ticks % timeUnit == 0) {
+                // One time unit has passed. Increment time elapsed
+                time_event(key);
+                ticks = 0;
+            }
         }
     }
 }
@@ -261,7 +300,7 @@ int main(){
  *  Returns: grid matrix printed to terminal
  */
 void init_pit_border(int x, int y) {
-    addstr("Welcome to Snake  |  Clock: ------  |  Ticks: --  |  Direction: -----  |  Last Pressed: -  |  Press Space to exit.\n");    // name of game, score, space for user inputs
+    addstr("Welcome to Snake  |  Clock: ------  |  Ticks: ---  |  Direction: -----  |  Last Pressed: -  |  Press Space to exit.\n");    // name of game, score, space for user inputs
     /* place border tokens in appropriate cells */
     for (int i = 1; i < y; i++) {
         for (int j = 0; j < x-1; j++) {
