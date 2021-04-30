@@ -44,10 +44,13 @@ void init_pit_border();
 
 /* RE: snake */
 void eat_fruit(int y, int x);
-void init_snake(int y, int x, char direction);
+void init_snake(int, int);
 void move_snake();
 void shorten_tail();
 void auto_move();
+
+void move_snake_2();
+void grow_snake(int);
 
 /* RE: logic */
 char choose_random_direction();
@@ -78,14 +81,12 @@ int timeUnit = 128;          // A timeUnit consists of x amount of ticks. So in 
 
 
 /* snake head location */
-int head_y = 5;                     // TODO: change to random
-int head_x = 10;                    // TODO: change to random
+int head_y;                     // TODO: change to random
+int head_x;                    // TODO: change to random
 
 /* logic */
-static char move_up = 'w';
-static char move_down = 's';
-static char move_left = 'a';
-static char move_right = 'd';
+static int dirY;
+static int dirX;
 
 /* timing */
 struct timespec speed, rem; // speed governs the rate at which the screen refreshes. rem is unused, but will hold the time saved from the user's interupt signal
@@ -107,8 +108,8 @@ struct node{
 };
 
 /* head of snake */
-struct node *head = NULL;
-struct node *tail = NULL;
+struct node *head;
+struct node *tail;
 
 /***********************************************************************************************************************
 *  DRIVER CODE                                                                                                         *
@@ -138,6 +139,9 @@ int main(){
     pit_size();
     /* draw the border */
     init_pit_border(window_col, window_row);
+    /* center the snake */
+    head_y = window_row/2;
+    head_x = window_col/2;
     /* set random initial direction */
     key = choose_random_direction();
 
@@ -155,10 +159,11 @@ int main(){
     keypad(stdscr,TRUE);        //Handel arrow input MM
 
     /* init snake of size 3 */
-    init_snake(head_y, head_x, key);
+    //init_snake(head_y, head_x, key);
+    init_snake(head_y, head_x);
 
     /* Print initial pause message */
-    move(window_row / 2, window_col / 2);
+    move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
     addstr("Press any key to start playing!");
     move(window_row - 1, window_col - 1);
 
@@ -173,7 +178,7 @@ int main(){
     set_nodelay_mode(); // Setting this prevents getch() from blocking the program for input.
 
     /* Erase initial pause message */
-    move(window_row / 2, window_col / 2);
+    move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
     addstr("                                ");
     move(window_row - 1, window_col - 1);
 
@@ -200,7 +205,13 @@ int main(){
                     // Draw the direction moved
                     move(0, DIRECTION_POS);
                     addstr("LEFT ");
+
+                    /* Sets the last key pressed and the direction variables used to move the snake. */
                     key = 'a';
+                    dirY = 0;
+                    dirX = -1;
+
+                    /* Go forward in time */
                     time_event();
                     break;
 
@@ -213,9 +224,14 @@ int main(){
                     // Draw the direction moved
                     move(0, DIRECTION_POS);
                     addstr("DOWN ");
+
+                    /* Sets the last key pressed and the direction variables used to move the snake. */
                     key = 's';
+                    dirY = 1;
+                    dirX = 0;
+
+                    /* Go forward in time */
                     time_event();
-                    //refresh();
                     break;
 
                 case (char) KEY_UP:
@@ -227,8 +243,13 @@ int main(){
                     // Draw the direction moved
                     move(0, DIRECTION_POS);
                     addstr("UP   ");
+
+                    /* Sets the last key pressed and the direction variables used to move the snake. */
                     key = 'w';
-                    //refresh();
+                    dirY = -1;
+                    dirX = 0;
+
+                    /* Go forward in time */
                     time_event();
                     break;
 
@@ -241,8 +262,13 @@ int main(){
                     // Draw the direction moved
                     move(0, DIRECTION_POS);
                     addstr("RIGHT");
+
+                    /* Sets the last key pressed and the direction variables used to move the snake. */
                     key = 'd';
-                    //refresh();
+                    dirY = 0;
+                    dirX = 1;
+                    
+                    /* Go forward in time */
                     time_event();
                     break;
                 case ' ':
@@ -342,125 +368,97 @@ void pit_size(){
 *  4) move snake - handles printing tokens and pointers
 *  5) auto move - handles snake coordinates and directionality
 ***********************************************************************************************************************/
-/*
- * 1) eat_fruit(), eg add node to head
- * Purpose: grows snake
- * Method: call eat_fruit() when head collides with fruit
- * Input: none
- * Returns: doubly linked list with new length of +1.
- *
- * A) create a new node
- * B) add new node to head of LL
- *
- * THE DATA STRUCTURE:
- *      TAIL <--> NODE <--> HEAD where
- *      a. TAIL contains last element, contains NULL only with <=2 nodes.
- *      b. NODE are middle snake segments,
- *      c. HEAD always points to front, new nodes always added to head.
+/* starter_snake()
+*  Purpose: initializes baby snake for game
+*  Method: part of initializing the game
+*  Input: none
+*  Returns: LL with new length 3.
+*/
+void init_snake (int start_y, int start_x) {
+    // Allocate memory for the head and tail.
+    head = (struct node*)malloc(sizeof(struct node));
+    tail = (struct node*)malloc(sizeof(struct node));
+
+    // Connect the snake head and tail to form the body.
+    head->prev = tail;
+    tail->next = head;
+
+    // Set the position of the snake's head.
+    head->row = start_y;
+    head->column = start_x;
+
+    // Add some starter snake pieces to the snake.
+    grow_snake(3);
+}
+/* grow_snake()
+ * Purpose: Grows the snake by x snake pieces.
+ * Method: Every iteration, add a new node inbetween the tail and body.
+ * Input: x number of snake pieces to add.
+ * Returns: Longer snake.
+*/
+void grow_snake(int x) {
+    for (int i = 0; i < x; i++) {
+        // This is the node which will be closer to the head than the new_piece.
+        struct node* body = tail->next;
+
+        // Allocate a space in memory for this node.
+        struct node* new_piece = (struct node*)malloc(sizeof(struct node)); 
+
+        // Set the coordinates of this new snake piece
+        new_piece->row = tail->row;
+        new_piece->column = tail->column;
+
+        // Insert the new_piece between the tail and the body node
+        new_piece->next = tail->next; // Point the new_piece to the right nodes.
+        new_piece->prev = tail;
+        tail->next = new_piece; // Change the tail and body node pointers to point to the new_piece.
+        body->prev = new_piece;
+    }
+}
+/* move_snake()
+ * Purpose: Move the snake head and let the snakes body follow suit.
+ * Method: Movement of the head is governed by the dirY and dirX values. the rest of the pieces take the place of whatever their next pointer was.
+ * Input: None
+ * Returns: A new frame.
  */
-void eat_fruit(int y, int x){
-    /* A) create a pointer of new node to add */
-    struct node *new_head = (struct node*)malloc(sizeof(struct node));
-    new_head->row = y;
-    new_head->column = x;
-    /* B) add new node to head of LL */
-    if (head == NULL) {                     // list is empty, first item becomes head and tail remains
-        head = new_head;
-        head->prev = tail;
-    }
-    if (tail == NULL) {                     // list only has one item (the head), second becomes the tail
-        tail = head;
-        tail->next = new_head;
-        head = new_head;
-        head->prev = tail;
-    }
-    if (tail && head != NULL){
-        head->next = new_head;
-        new_head -> prev = head;
-        head = new_head;
-    }
-}
-/* 2) remove_tail(), remove node from tail
-*  Purpose: initializes baby snake for game
-*  Method: call before initializing game
-*  Input: none
-*  Returns: LL with new length 3.
-*/
-void shorten_tail(){
-    // delete tail on screen
-    move(tail->row, tail->column);
-    addstr(" ");
-    // save coordinates of new tail
-    int node_y = tail->next->row;
-    int node_x = tail->next->column;
-    // set pointer to new tail
-    tail = tail->next;
-    // set coordinates to new tail
-    tail->row = node_y;
-    tail->column = node_x;
-}
+void move_snake() {
+    // The snake will always move to fill the placeholder.
+    // save placeholder position 
+    int placeholder_y = head->row;
+    int placeholder_x = head->column;
 
-/* 3) starter_snake()
-*  Purpose: initializes baby snake for game
-*  Method: call before initializing game
-*  Input: none
-*  Returns: LL with new length 3.
-*/
-void init_snake(int y, int x, char direction){
-    /* create starter snake */
-    int node_y = y;
-    int node_x = x;
-    //eat_fruit(node_y, node_x);
-    for(int i = 0; i < 3; i++) {
-        if (direction == 'w') {
-            node_y = node_y - 1;
-        } else if (direction == 's') {
-            node_y = node_y + 1;
-        } else if (direction == 'a') {
-            node_x = node_x - 1;
-        } else if (direction == 'd') {
-            node_x = node_x + 1;
-        }
-        eat_fruit(node_y,node_x);
-        // eatfruit will handle pointers, handle tail coordinates here.
-        tail->row = node_y;
-        tail->column = node_x;
-    }
-    // reset head coordinates after scanning linked list.
-    head->row = y;
-    head->column = x;
-}
-
-/* 4) move_snake()
-*  Purpose: takes in two coordinate arguments, creates a new head node
-*  Method: adjusts pointers as appropriate for moving snake forward one direction
-*       - ONLY handles pointers and printing tokens. NOTE that auto-move handles directionality and coordinates
- *      - illusion of movement created by lengthening head while simultaneously shortening tail.
- *      - NOTE: no net addition of nodes occurs.
-*  Input: int y coordinate and int x coordinate
-*  Returns: a snake whose tokens represent movement
-*/
-void move_snake(int y, int x){
-    // add segment to head
-    eat_fruit(y, x);
-    // remove from tail
-    shorten_tail();
-    // save original location of head
-    int save_y = head->row;
-    int save_x = head->column;
-    // scan through snake printing tokens
-    struct node* scanner = head;
-    while(scanner != tail) {
-        move(scanner->row,scanner->column);
-        addstr("o");
-        scanner = scanner->prev;
-    }
-    // reset head of snake
-    head->row = save_y;
-    head->column = save_x;
-    // move cursor back to head of snake
+    // Move the head forward to the next position and draw it.
+    head->row += dirY;
+    head->column += dirX;
     move(head->row,head->column);
     addstr("O");
+
+    // scan through snake printing tokens
+    struct node* scanner = head->prev;
+    while(scanner != NULL) {
+        // Store the placeholder values from last iteration that this node to move to.
+        int temp_y = placeholder_y;
+        int temp_x = placeholder_x;
+
+        // This node's current position will be the new placeholder for the next node.
+        placeholder_y = scanner->row;
+        placeholder_x = scanner->column;
+
+        // Move the node to the new, correct position
+        scanner->row = temp_y;
+        scanner->column = temp_x;
+
+        // Print the snake piece
+        move(scanner->row,scanner->column);
+        addstr("o");
+
+        // Prepare for the next iteration
+        scanner = scanner->prev;
+    }
+
+    // Avoid leaving a trail behind the snake. 
+    move(placeholder_y, placeholder_x);
+    addstr(" ");
     refresh();
 }
 /* 4) auto_move()
@@ -472,7 +470,7 @@ void move_snake(int y, int x){
 */
 void auto_move(){
     /* Handle user input */
-    if (key == 'w') {
+    /*if (key == 'w') {
         // Draw the direction moved
         move_snake(head->row-1, head->column);
         move(head->row, head->column);
@@ -491,7 +489,8 @@ void auto_move(){
         // Draw the direction moved
         move_snake(head->row, head->column+1);
         move(head->row, head->column);
-    }
+    }*/
+    move_snake();
 
     /* check for border collisions */
     if (head->row == 1 || head->row == LINES-1 || head->column == 0 || head->column == COLS-2){
@@ -499,7 +498,17 @@ void auto_move(){
     }
 
     /* check for running into itself */
-    // save head coordinates before scan
+    /*if (gameTime > 30) {
+        struct node* scanner = head->prev;
+        while(scanner != NULL) {
+            if (scanner->row == head->row && scanner->column == head->column) {
+                // The head is in the exact same spot as a piece of it's body.
+                // This means the snake has collided into itself.
+                game_condition(3);
+            }
+        }
+    }*/
+    
 }
 
 /***********************************************************************************************************************
@@ -517,15 +526,21 @@ void auto_move(){
 char choose_random_direction(){
     int random_integer = rand() % 4; // DETERMINE RANDOM NUMBER BETWEEN 0 AND 3
     if (random_integer == 0){
+        dirY = -1;
+        dirX = 0;
         return 'w';
     } else if (random_integer == 1){
+        dirY = 1;
+        dirX = 0;
         return 's';
     } else if (random_integer == 2){
+        dirY = 0;
+        dirX = -1;
         return 'a';
-    } else if (random_integer == 3){
-        return 'd';
     } else {
-        return 'x';
+        dirY = 0;
+        dirX = 1;
+        return 'd';
     }
 }
 /*
