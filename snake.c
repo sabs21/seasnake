@@ -44,10 +44,13 @@ void init_pit_border();
 
 /* RE: snake */
 void eat_fruit(int y, int x);
-void init_snake(int y, int x, char direction);
+void init_snake(int, int);
 void move_snake();
 void shorten_tail();
-void auto_move();
+void detect_collisions();
+
+void move_snake_2();
+void grow_snake(int);
 
 /* RE: logic */
 char choose_random_direction();
@@ -61,6 +64,12 @@ void set_nodelay_mode();
 int get_movement_input();
 void end_snake(int signum);
 
+/* Trophies */
+void init_trophy();
+struct trophy new_trophy();
+void print_trophy();
+int snake_hit_trophy();
+
 /** statics, structs, and constants **/
 /* window dimensions*/
 static int window_row;
@@ -68,24 +77,20 @@ static int window_col;
 
 /* game stats */
 static int score = 0;
-static int snake_len = 3;
 static char key;
-int mode = 1;                // 1 = true, 0 = false
-int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
-int ticks = 0;               // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
-int lastTick = -1;           // Used by the inner loop to prevent extra inputs from getting registered when they shouldn't be.
-int timeUnit = 128;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
+short mode = 1;                       // 1 = true, 0 = false
+unsigned int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
+unsigned short ticks = 0;             // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
+unsigned int timeUnit = 128;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
 
 
 /* snake head location */
-int head_y = 5;                     // TODO: change to random
-int head_x = 10;                    // TODO: change to random
+int head_y;                     // TODO: change to random
+int head_x;                    // TODO: change to random
 
 /* logic */
-static char move_up = 'w';
-static char move_down = 's';
-static char move_left = 'a';
-static char move_right = 'd';
+static short dirY;
+static short dirX;
 
 /* timing */
 struct timespec speed, rem; // speed governs the rate at which the screen refreshes. rem is unused, but will hold the time saved from the user's interupt signal
@@ -106,9 +111,18 @@ struct node{
     struct node *next;
 };
 
+struct trophy{
+    int row;
+    int column;
+    int value;
+};
+
 /* head of snake */
-struct node *head = NULL;
-struct node *tail = NULL;
+struct node *head;
+struct node *tail;
+
+/* trophy */
+struct trophy *trophy;
 
 /***********************************************************************************************************************
 *  DRIVER CODE                                                                                                         *
@@ -138,6 +152,9 @@ int main(){
     pit_size();
     /* draw the border */
     init_pit_border(window_col, window_row);
+    /* center the snake */
+    head_y = window_row/2;
+    head_x = window_col/2;
     /* set random initial direction */
     key = choose_random_direction();
 
@@ -154,11 +171,14 @@ int main(){
     /* use key pad  by Mateusz Mirga   */
     keypad(stdscr,TRUE);        //Handel arrow input MM
 
-    /* init snake of size 3 */
-    init_snake(head_y, head_x, key);
+    /* init snake of size 5 */
+    init_snake(head_y, head_x);
+    init_trophy();
+    new_trophy();
+    print_trophy();
 
     /* Print initial pause message */
-    move(window_row / 2, window_col / 2);
+    move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
     addstr("Press any key to start playing!");
     move(window_row - 1, window_col - 1);
 
@@ -167,23 +187,14 @@ int main(){
 
     /* Keeps the user in a paused state until they hit a button ~ Nick Sabia */
     getchar();
-    //while (!mode) {
-        //input = getch();
-        //switch (input) {
-            //case ERR:
-               //break;
-           // default:
-                //mode = 1;
-                //break;
-        //}
-    //}
 
     /* Enable settings after the user un-pauses */
     set_settings(); // Set terminal settings for the program.
+    noecho();
     set_nodelay_mode(); // Setting this prevents getch() from blocking the program for input.
 
     /* Erase initial pause message */
-    move(window_row / 2, window_col / 2);
+    move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
     addstr("                                ");
     move(window_row - 1, window_col - 1);
 
@@ -194,100 +205,98 @@ int main(){
          * Without this loop, a lot of extra inputs would get registered that would lead to the snake barreling off into one direction,
          * ignoring the user's attempt at slowing down or changing direction. ~ Nick Sabia
         */
-        while(ticks != lastTick) {
-            // Set the lastTick equal to the current tick to show that there was a check for input.
-            lastTick = ticks;
-            //noecho(); echo is already turned off when set_settings is called
-            input = getch();
-            // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
-            switch (input) {
-                case (char) KEY_LEFT:
-                case 'a':
-                    // Check for reversal:
-                    if (key == 'd' || key == (char)KEY_RIGHT){
-                        game_condition(2);
-                    }
-                    // Draw the direction moved
-                    move(0, DIRECTION_POS);
-                    addstr("LEFT ");
-                    key = 'a';
-                    time_event();
-                    break;
-
-                case (char) KEY_DOWN:
-                case 's':
-                    // Check for reversal:
-                    if (key == 'w' || key == (char)KEY_UP){
-                        game_condition(2);
-                    }
-                    // Draw the direction moved
-                    move(0, DIRECTION_POS);
-                    addstr("DOWN ");
-                    key = 's';
-                    time_event();
-                    //refresh();
-                    break;
-
-                case (char) KEY_UP:
-                case 'w':
-                    // Check for reversal:
-                    if (key == 's' || key == (char)KEY_DOWN){
-                        game_condition(2);
-                    }
-                    // Draw the direction moved
-                    move(0, DIRECTION_POS);
-                    addstr("UP   ");
-                    key = 'w';
-                    //refresh();
-                    time_event();
-                    break;
-
-                case (char) KEY_RIGHT:
-                case 'd':
-                    // Check for reversal:
-                    if (key == 'a' || key == (char)KEY_LEFT){
-                        game_condition(2);
-                    }
-                    // Draw the direction moved
-                    move(0, DIRECTION_POS);
-                    addstr("RIGHT");
-                    key = 'd';
-                    //refresh();
-                    time_event();
-                    break;
-                case ' ':
-                    game_condition(4);
-                    break;
-                default:
-                    break;
-            }
-
-            // Draw the current time elapsed
-            move(0, CLOCK_POS);
-            sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
-            addstr(gameTimeStr);
-
-            // Draw the current number of ticks
-            move(0, TICK_POS);
-            sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
-            addstr(ticksStr);
-
-            // Reset cursor position
-            move(window_row - 1, window_col - 1);
-
-            // Wait a half a second. This sleep does not block interrupts.
+        while ((input = getch() ) == ERR) {
             nanosleep(&speed, &rem);
             ticks++;
-
-            // send tokens for border from buffer to terminal
-            refresh();
-
             if (ticks % timeUnit == 0) {
                 // One time unit has passed. Increment time elapsed
-                time_event(key);
-                ticks = 0;
+                time_event();
             }
         }
+
+        // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
+        switch (input) {
+            case (char) KEY_LEFT:
+            case 'a':
+                // Draw the direction moved
+                move(0, DIRECTION_POS);
+                addstr("LEFT ");
+
+                /* Sets the last key pressed and the direction variables used to move the snake. */
+                key = 'a';
+                dirY = 0;
+                dirX = -1;
+
+                /* Go forward in time */
+                time_event();
+                break;
+
+            case (char) KEY_DOWN:
+            case 's':
+                // Draw the direction moved
+                move(0, DIRECTION_POS);
+                addstr("DOWN ");
+
+                /* Sets the last key pressed and the direction variables used to move the snake. */
+                key = 's';
+                dirY = 1;
+                dirX = 0;
+
+                /* Go forward in time */
+                time_event();
+                break;
+
+            case (char) KEY_UP:
+            case 'w':
+                // Draw the direction moved
+                move(0, DIRECTION_POS);
+                addstr("UP   ");
+
+                /* Sets the last key pressed and the direction variables used to move the snake. */
+                key = 'w';
+                dirY = -1;
+                dirX = 0;
+
+                /* Go forward in time */
+                time_event();
+                break;
+
+            case (char) KEY_RIGHT:
+            case 'd':
+                // Draw the direction moved
+                move(0, DIRECTION_POS);
+                addstr("RIGHT");
+
+                /* Sets the last key pressed and the direction variables used to move the snake. */
+                key = 'd';
+                dirY = 0;
+                dirX = 1;
+                
+                /* Go forward in time */
+                time_event();
+                break;
+            case ' ':
+                game_condition(4);
+                break;
+            default:
+                break;
+        }
+
+        // Draw the current time elapsed
+        move(0, CLOCK_POS);
+        sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
+        addstr(gameTimeStr);
+
+        // Draw the current number of ticks
+        move(0, TICK_POS);
+        sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
+        addstr(ticksStr);
+
+        // Reset cursor position
+        move(window_row - 1, window_col - 1);
+
+        // send tokens for border from buffer to terminal
+        refresh();
     }
 }
 
@@ -352,164 +361,142 @@ void pit_size(){
 *  4) move snake - handles printing tokens and pointers
 *  5) auto move - handles snake coordinates and directionality
 ***********************************************************************************************************************/
-/*
- * 1) eat_fruit(), eg add node to head
- * Purpose: grows snake
- * Method: call eat_fruit() when head collides with fruit
- * Input: none
- * Returns: doubly linked list with new length of +1.
- *
- * A) create a new node
- * B) add new node to head of LL
- *
- * THE DATA STRUCTURE:
- *      TAIL <--> NODE <--> HEAD where
- *      a. TAIL contains last element, contains NULL only with <=2 nodes.
- *      b. NODE are middle snake segments,
- *      c. HEAD always points to front, new nodes always added to head.
+/* starter_snake()
+*  Purpose: initializes baby snake for game
+*  Method: part of initializing the game
+*  Input: none
+*  Returns: LL with new length 3.
+*/
+void init_snake (int start_y, int start_x) {
+    // Allocate memory for the head and tail.
+    head = (struct node*)malloc(sizeof(struct node));
+    tail = (struct node*)malloc(sizeof(struct node));
+
+    // Connect the snake head and tail to form the body.
+    head->prev = tail;
+    tail->next = head;
+
+    // Set the position of the snake's head.
+    head->row = start_y;
+    head->column = start_x;
+
+    // Add some starter snake pieces to the snake.
+    grow_snake(3);
+}
+/* grow_snake()
+ * Purpose: Grows the snake by x snake pieces.
+ * Method: Every iteration, add a new node inbetween the tail and body.
+ * Input: x number of snake pieces to add.
+ * Returns: Longer snake.
+*/
+void grow_snake(int x) {
+    for (int i = 0; i < x; i++) {
+        // This is the node which will be closer to the head than the new_piece.
+        struct node* body = tail->next;
+
+        // Allocate a space in memory for this node.
+        struct node* new_piece = (struct node*)malloc(sizeof(struct node)); 
+
+        // Set the coordinates of this new snake piece
+        new_piece->row = tail->row;
+        new_piece->column = tail->column;
+
+        // Insert the new_piece between the tail and the body node
+        new_piece->next = tail->next; // Point the new_piece to the right nodes.
+        new_piece->prev = tail;
+        tail->next = new_piece; // Change the tail and body node pointers to point to the new_piece.
+        body->prev = new_piece;
+    }
+}
+/* move_snake()
+ * Purpose: Move the snake head and let the snakes body follow suit.
+ * Method: Movement of the head is governed by the dirY and dirX values. the rest of the pieces take the place of whatever their next pointer was.
+ * Input: None
+ * Returns: A new frame.
  */
-void eat_fruit(int y, int x){
-    /* A) create a pointer of new node to add */
-    struct node *new_head = (struct node*)malloc(sizeof(struct node));
-    new_head->row = y;
-    new_head->column = x;
-    /* B) add new node to head of LL */
-    if (head == NULL) {                     // list is empty, first item becomes head and tail remains
-        head = new_head;
-        head->prev = tail;
-    }
-    if (tail == NULL) {                     // list only has one item (the head), second becomes the tail
-        tail = head;
-        tail->next = new_head;
-        head = new_head;
-        head->prev = tail;
-    }
-    if (tail && head != NULL){
-        head->next = new_head;
-        new_head -> prev = head;
-        head = new_head;
-    }
-}
-/* 2) remove_tail(), remove node from tail
-*  Purpose: initializes baby snake for game
-*  Method: call before initializing game
-*  Input: none
-*  Returns: LL with new length 3.
-*/
-void shorten_tail(){
-    // delete tail on screen
-    move(tail->row, tail->column);
-    addstr(" ");
-    // save coordinates of new tail
-    int node_y = tail->next->row;
-    int node_x = tail->next->column;
-    // set pointer to new tail
-    tail = tail->next;
-    // set coordinates to new tail
-    tail->row = node_y;
-    tail->column = node_x;
-}
+void move_snake() {
+    // The snake will always move to fill the placeholder.
+    // save placeholder position 
+    int placeholder_y = head->row;
+    int placeholder_x = head->column;
 
-/* 3) starter_snake()
-*  Purpose: initializes baby snake for game
-*  Method: call before initializing game
-*  Input: none
-*  Returns: LL with new length 3.
-*/
-void init_snake(int y, int x, char direction){
-    /* create starter snake */
-    int node_y = y;
-    int node_x = x;
-    //eat_fruit(node_y, node_x);
-    for(int i = 0; i < 3; i++) {
-        if (direction == 'w') {
-            node_y = node_y - 1;
-        } else if (direction == 's') {
-            node_y = node_y + 1;
-        } else if (direction == 'a') {
-            node_x = node_x - 1;
-        } else if (direction == 'd') {
-            node_x = node_x + 1;
-        }
-        eat_fruit(node_y,node_x);
-        // eatfruit will handle pointers, handle tail coordinates here.
-        tail->row = node_y;
-        tail->column = node_x;
-    }
-    // reset head coordinates after scanning linked list.
-    head->row = y;
-    head->column = x;
-}
-
-/* 4) move_snake()
-*  Purpose: takes in two coordinate arguments, creates a new head node
-*  Method: adjusts pointers as appropriate for moving snake forward one direction
-*       - ONLY handles pointers and printing tokens. NOTE that auto-move handles directionality and coordinates
- *      - illusion of movement created by lengthening head while simultaneously shortening tail.
- *      - NOTE: no net addition of nodes occurs.
-*  Input: int y coordinate and int x coordinate
-*  Returns: a snake whose tokens represent movement
-*/
-void move_snake(int y, int x){
-    // add segment to head
-    eat_fruit(y, x);
-    // remove from tail
-    shorten_tail();
-    // save original location of head
-    int save_y = head->row;
-    int save_x = head->column;
-    // scan through snake printing tokens
-    struct node* scanner = head;
-    while(scanner != tail) {
-        move(scanner->row,scanner->column);
-        addstr("o");
-        scanner = scanner->prev;
-    }
-    // reset head of snake
-    head->row = save_y;
-    head->column = save_x;
-    // move cursor back to head of snake
+    // Move the head forward to the next position and draw it.
+    head->row += dirY;
+    head->column += dirX;
     move(head->row,head->column);
     addstr("O");
+
+    // scan through snake printing tokens
+    struct node* scanner = head->prev;
+    while(scanner != NULL) {
+        // Store the placeholder values from last iteration that this node to move to.
+        int temp_y = placeholder_y;
+        int temp_x = placeholder_x;
+
+        // This node's current position will be the new placeholder for the next node.
+        placeholder_y = scanner->row;
+        placeholder_x = scanner->column;
+
+        // Move the node to the new, correct position
+        scanner->row = temp_y;
+        scanner->column = temp_x;
+
+        // Print the snake piece
+        move(scanner->row,scanner->column);
+        addstr("o");
+
+        // Prepare for the next iteration
+        scanner = scanner->prev;
+    }
+
+    // Avoid leaving a trail behind the snake. 
+    move(placeholder_y, placeholder_x);
+    addstr(" ");
     refresh();
 }
-/* 4) auto_move()
-*  Purpose: moves snake depending on value of key (current direction of snake).
-*  Method: provides move with new y,x coordinates with which to move snake.
-*       - ONLY handles coordinates of head node, dependent on key value. NOTE that auto-move pointers and printing
+/*
+ * Purpose: Checks if the snake ran into itself.
+ * Method: Check each piece of the snake to see if it is in the same position as the head. If so, the snake ran into itself.
+ * Input: None.
+ * Returns: 1 if snake ran into self, 0 otherwise.
+*/
+int snake_hit_self() {
+    // Use a scanner node to check each part of the snake.
+    struct node* scanner = head->prev;
+    while(scanner != NULL) {
+        if (scanner->row == head->row && scanner->column == head->column) {
+            // The head is in the exact same spot as a piece of it's body.
+            // This means the snake has collided into itself.
+            return 1;
+        }
+        else {
+            // Move onto the next piece of the snake.
+            scanner = scanner->prev;
+        }
+    }
+    return 0;
+}
+/* 4) detect_collisions()
+*  Purpose: Performs checks after the snake is moved to see if the snake is colliding with anything.
+*  Method: Checks whether the snake hits the walls (game_condition(1)), itself (game_condition(2)), or a trophy (game_condition(3)).
 *  Input: none
 *  Returns: a snake which appears to move depending on key value. meant to occur each second until win or lose condition
 */
-void auto_move(){
-    /* Handle user input */
-    if (key == 'w') {
-        // Draw the direction moved
-        move_snake(head->row-1, head->column);
-        move(head->row, head->column);
-    }
-    if (key == 'a') {
-        // Draw the direction moved
-        move_snake(head->row, head->column-1);
-        move(head->row, head->column);
-    }
-    if (key == 's') {
-        // Draw the direction moved
-        move_snake(head->row+1, head->column);
-        move(head->row, head->column);
-    }
-    if (key == 'd') {
-        // Draw the direction moved
-        move_snake(head->row, head->column+1);
-        move(head->row, head->column);
-    }
-
+void detect_collisions(){
     /* check for border collisions */
     if (head->row == 1 || head->row == LINES-1 || head->column == 0 || head->column == COLS-2){
         game_condition(1);
     }
 
     /* check for running into itself */
-    // save head coordinates before scan
+    if (snake_hit_self()) {
+        game_condition(2);
+    }
+
+    /* check for trophy collision */
+    if (snake_hit_trophy()) {
+        game_condition(3);
+    }
 }
 
 /***********************************************************************************************************************
@@ -527,15 +514,21 @@ void auto_move(){
 char choose_random_direction(){
     int random_integer = rand() % 4; // DETERMINE RANDOM NUMBER BETWEEN 0 AND 3
     if (random_integer == 0){
+        dirY = -1;
+        dirX = 0;
         return 'w';
     } else if (random_integer == 1){
+        dirY = 1;
+        dirX = 0;
         return 's';
     } else if (random_integer == 2){
+        dirY = 0;
+        dirX = -1;
         return 'a';
-    } else if (random_integer == 3){
-        return 'd';
     } else {
-        return 'x';
+        dirY = 0;
+        dirX = 1;
+        return 'd';
     }
 }
 /*
@@ -554,21 +547,19 @@ void game_condition(int option){
             sleep(2);
             raise(SIGINT);
             break;
-            /* direction reversal */
-        case(2):
-            move(window_row / 2, window_col / 2);
-            addstr("YOU GOOFED!\tYou reversed direction.");
-            refresh();
-            sleep(2);
-            raise(SIGINT);
-            break;
             /* run into itself */
-        case(3):
+        case(2):
             move(window_row / 2, window_col / 2);
             addstr("YOU GOOFED!\tYou bit yourself.");
             refresh();
             sleep(2);
             raise(SIGINT);
+            break;
+            /* snake reaches trophy */
+        case(3):
+            grow_snake(trophy->value);
+            new_trophy();
+            print_trophy();
             break;
             /* user exit */
         case(4):
@@ -589,8 +580,73 @@ void game_condition(int option){
 void time_event(){
     ticks = 0;
     gameTime++;
-    auto_move();
+    move_snake();
+    detect_collisions();
     refresh();
+}
+/***********************************************************************************************************************
+*  TROPHIES
+*  
+***********************************************************************************************************************/
+void init_trophy() {
+    trophy = (struct trophy*)malloc(sizeof (struct trophy*));
+}
+
+/* Outputs a new, randomly placed trophy */
+struct trophy new_trophy() {
+    // We must place the trophy in a free, empty space.
+    // Detect if the randomly generated coordinates are on the snake. If so, re-roll.
+    int valid_space = 0;
+    while(!valid_space) {
+        // Subtract 1 from both randomly picked values to avoid getting the trophy stuck in the wall
+        trophy->row = (rand() % window_row-1) - 1;
+        trophy->column = (rand() % window_col-1) - 1;
+
+        // Use a scanner node to check if the trophy is in the snake.
+        struct node* scanner = head;
+        while(scanner != NULL) {
+            if (scanner->row == trophy->row && scanner->column == trophy->column) {
+                // Break the loop pre-maturely. 
+                // As a result, scanner will not be null. 
+                break;
+            }
+            else {
+                // Move onto the next piece of the snake.
+                scanner = scanner->prev;
+            }
+        }
+
+        if (scanner == NULL) {
+            // If the scanner is null, then the while loop did not pre-maturely break and we have found a valid space for the new trophy.
+            valid_space = 1;
+        }
+
+        // If the scanner is not null, then the while loop got broken out of pre-maturely. 
+        // Since valid_space is still 0, we will re-roll and try finding another spot to place the trophy.
+    }
+    
+    // Assign a random value to the trophy between 1 and 9.
+    trophy->value = (rand() % 9) + 1;
+}
+
+void print_trophy() {
+    // Convert the random value into a string for printing to the screen.
+    char* valueStr;
+    move(trophy->row, trophy->column);
+    sprintf(valueStr, "%d", trophy->value);
+    addstr(valueStr);
+    //refresh();
+}
+
+int snake_hit_trophy() {
+    if (head->row == trophy->row && head->column == trophy->column) {
+        // The head is in the exact same spot as the trophy.
+        // This means the snake has successfully reached the trophy.
+        return 1;
+    }
+
+    // The snake's head is not on a trophy.
+    return 0;
 }
 
 /***********************************************************************************************************************
@@ -632,8 +688,8 @@ void set_settings() {
         exit(1);
     }
     settings.c_lflag   &= ~ICANON; /* No buffering */
-    settings.c_lflag   &= ~ECHO; /* Turn off echo. */
-    settings.c_cc[VMIN] = 1; /* get 1 char at a time */
+    //settings.c_lflag   &= ~ECHO; /* Turn off echo. */
+    //settings.c_cc[VMIN] = 1; /* get 1 char at a time */
     tcsetattr(STDIN_FD, TCSANOW, &settings);
 }
 
@@ -656,5 +712,4 @@ void end_snake(int signum) {
     endwin();       // Terminate curses window
     tty_mode(1);    // Restore terminal settings
     exit(1);        // End the program
-    //<<<<<<< revisions
 }
