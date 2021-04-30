@@ -167,16 +167,6 @@ int main(){
 
     /* Keeps the user in a paused state until they hit a button ~ Nick Sabia */
     getchar();
-    //while (!mode) {
-        //input = getch();
-        //switch (input) {
-            //case ERR:
-               //break;
-           // default:
-                //mode = 1;
-                //break;
-        //}
-    //}
 
     /* Enable settings after the user un-pauses */
     set_settings(); // Set terminal settings for the program.
