@@ -47,7 +47,7 @@ void eat_fruit(int y, int x);
 void init_snake(int, int);
 void move_snake();
 void shorten_tail();
-void auto_move();
+void detect_collisions();
 
 void move_snake_2();
 void grow_snake(int);
@@ -63,6 +63,12 @@ void set_settings();
 void set_nodelay_mode();
 int get_movement_input();
 void end_snake(int signum);
+
+/* Trophies */
+void init_trophy();
+struct trophy new_trophy();
+void print_trophy();
+int snake_hit_trophy();
 
 /** statics, structs, and constants **/
 /* window dimensions*/
@@ -105,9 +111,18 @@ struct node{
     struct node *next;
 };
 
+struct trophy{
+    int row;
+    int column;
+    int value;
+};
+
 /* head of snake */
 struct node *head;
 struct node *tail;
+
+/* trophy */
+struct trophy *trophy;
 
 /***********************************************************************************************************************
 *  DRIVER CODE                                                                                                         *
@@ -156,9 +171,11 @@ int main(){
     /* use key pad  by Mateusz Mirga   */
     keypad(stdscr,TRUE);        //Handel arrow input MM
 
-    /* init snake of size 3 */
-    //init_snake(head_y, head_x, key);
+    /* init snake of size 5 */
     init_snake(head_y, head_x);
+    init_trophy();
+    new_trophy();
+    print_trophy();
 
     /* Print initial pause message */
     move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
@@ -259,7 +276,7 @@ int main(){
                 time_event();
                 break;
             case ' ':
-                game_condition(3);
+                game_condition(4);
                 break;
             default:
                 break;
@@ -450,7 +467,6 @@ int snake_hit_self() {
         if (scanner->row == head->row && scanner->column == head->column) {
             // The head is in the exact same spot as a piece of it's body.
             // This means the snake has collided into itself.
-            //game_condition(3);
             return 1;
         }
         else {
@@ -460,37 +476,13 @@ int snake_hit_self() {
     }
     return 0;
 }
-/* 4) auto_move()
-*  Purpose: moves snake depending on value of key (current direction of snake).
-*  Method: provides move with new y,x coordinates with which to move snake.
-*       - ONLY handles coordinates of head node, dependent on key value. NOTE that auto-move pointers and printing
+/* 4) detect_collisions()
+*  Purpose: Performs checks after the snake is moved to see if the snake is colliding with anything.
+*  Method: Checks whether the snake hits the walls (game_condition(1)), itself (game_condition(2)), or a trophy (game_condition(3)).
 *  Input: none
 *  Returns: a snake which appears to move depending on key value. meant to occur each second until win or lose condition
 */
-void auto_move(){
-    /* Handle user input */
-    /*if (key == 'w') {
-        // Draw the direction moved
-        move_snake(head->row-1, head->column);
-        move(head->row, head->column);
-    }
-    if (key == 'a') {
-        // Draw the direction moved
-        move_snake(head->row, head->column-1);
-        move(head->row, head->column);
-    }
-    if (key == 's') {
-        // Draw the direction moved
-        move_snake(head->row+1, head->column);
-        move(head->row, head->column);
-    }
-    if (key == 'd') {
-        // Draw the direction moved
-        move_snake(head->row, head->column+1);
-        move(head->row, head->column);
-    }*/
-    move_snake();
-
+void detect_collisions(){
     /* check for border collisions */
     if (head->row == 1 || head->row == LINES-1 || head->column == 0 || head->column == COLS-2){
         game_condition(1);
@@ -500,7 +492,11 @@ void auto_move(){
     if (snake_hit_self()) {
         game_condition(2);
     }
-    
+
+    /* check for trophy collision */
+    if (snake_hit_trophy()) {
+        game_condition(3);
+    }
 }
 
 /***********************************************************************************************************************
@@ -559,8 +555,14 @@ void game_condition(int option){
             sleep(2);
             raise(SIGINT);
             break;
-            /* user exit */
+            /* snake reaches trophy */
         case(3):
+            grow_snake(trophy->value);
+            new_trophy();
+            print_trophy();
+            break;
+            /* user exit */
+        case(4):
             move(window_row / 2, window_col / 2);
             addstr("Good Bye.");
             refresh();
@@ -578,8 +580,73 @@ void game_condition(int option){
 void time_event(){
     ticks = 0;
     gameTime++;
-    auto_move();
+    move_snake();
+    detect_collisions();
     refresh();
+}
+/***********************************************************************************************************************
+*  TROPHIES
+*  
+***********************************************************************************************************************/
+void init_trophy() {
+    trophy = (struct trophy*)malloc(sizeof (struct trophy*));
+}
+
+/* Outputs a new, randomly placed trophy */
+struct trophy new_trophy() {
+    // We must place the trophy in a free, empty space.
+    // Detect if the randomly generated coordinates are on the snake. If so, re-roll.
+    int valid_space = 0;
+    while(!valid_space) {
+        // Subtract 1 from both randomly picked values to avoid getting the trophy stuck in the wall
+        trophy->row = (rand() % window_row-1) - 1;
+        trophy->column = (rand() % window_col-1) - 1;
+
+        // Use a scanner node to check if the trophy is in the snake.
+        struct node* scanner = head;
+        while(scanner != NULL) {
+            if (scanner->row == trophy->row && scanner->column == trophy->column) {
+                // Break the loop pre-maturely. 
+                // As a result, scanner will not be null. 
+                break;
+            }
+            else {
+                // Move onto the next piece of the snake.
+                scanner = scanner->prev;
+            }
+        }
+
+        if (scanner == NULL) {
+            // If the scanner is null, then the while loop did not pre-maturely break and we have found a valid space for the new trophy.
+            valid_space = 1;
+        }
+
+        // If the scanner is not null, then the while loop got broken out of pre-maturely. 
+        // Since valid_space is still 0, we will re-roll and try finding another spot to place the trophy.
+    }
+    
+    // Assign a random value to the trophy between 1 and 9.
+    trophy->value = (rand() % 9) + 1;
+}
+
+void print_trophy() {
+    // Convert the random value into a string for printing to the screen.
+    char* valueStr;
+    move(trophy->row, trophy->column);
+    sprintf(valueStr, "%d", trophy->value);
+    addstr(valueStr);
+    //refresh();
+}
+
+int snake_hit_trophy() {
+    if (head->row == trophy->row && head->column == trophy->column) {
+        // The head is in the exact same spot as the trophy.
+        // This means the snake has successfully reached the trophy.
+        return 1;
+    }
+
+    // The snake's head is not on a trophy.
+    return 0;
 }
 
 /***********************************************************************************************************************
