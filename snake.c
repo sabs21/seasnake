@@ -173,6 +173,7 @@ int main(){
 
     /* Enable settings after the user un-pauses */
     set_settings(); // Set terminal settings for the program.
+    noecho();
     set_nodelay_mode(); // Setting this prevents getch() from blocking the program for input.
 
     /* Erase initial pause message */
@@ -628,8 +629,8 @@ void set_settings() {
         exit(1);
     }
     settings.c_lflag   &= ~ICANON; /* No buffering */
-    settings.c_lflag   &= ~ECHO; /* Turn off echo. */
-    settings.c_cc[VMIN] = 1; /* get 1 char at a time */
+    //settings.c_lflag   &= ~ECHO; /* Turn off echo. */
+    //settings.c_cc[VMIN] = 1; /* get 1 char at a time */
     tcsetattr(STDIN_FD, TCSANOW, &settings);
 }
 
