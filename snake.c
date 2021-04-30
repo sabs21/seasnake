@@ -71,13 +71,11 @@ static int window_col;
 
 /* game stats */
 static int score = 0;
-static int snake_len = 3;
 static char key;
-int mode = 1;                // 1 = true, 0 = false
-int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
-int ticks = 0;               // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
-int lastTick = -1;           // Used by the inner loop to prevent extra inputs from getting registered when they shouldn't be.
-int timeUnit = 128;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
+short mode = 1;                       // 1 = true, 0 = false
+unsigned int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
+unsigned short ticks = 0;             // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
+unsigned int timeUnit = 128;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
 
 
 /* snake head location */
@@ -85,8 +83,8 @@ int head_y;                     // TODO: change to random
 int head_x;                    // TODO: change to random
 
 /* logic */
-static int dirY;
-static int dirX;
+static short dirY;
+static short dirX;
 
 /* timing */
 struct timespec speed, rem; // speed governs the rate at which the screen refreshes. rem is unused, but will hold the time saved from the user's interupt signal
@@ -189,121 +187,114 @@ int main(){
          * Without this loop, a lot of extra inputs would get registered that would lead to the snake barreling off into one direction,
          * ignoring the user's attempt at slowing down or changing direction. ~ Nick Sabia
         */
-        while(ticks != lastTick) {
-            // Set the lastTick equal to the current tick to show that there was a check for input.
-            lastTick = ticks;
-            //noecho(); echo is already turned off when set_settings is called
-            input = getch();
-            // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
-            switch (input) {
-                case (char) KEY_LEFT:
-                case 'a':
-                    // Check for reversal:
-                    if (key == 'd' || key == (char)KEY_RIGHT){
-                        game_condition(2);
-                    }
-                    // Draw the direction moved
-                    move(0, DIRECTION_POS);
-                    addstr("LEFT ");
-
-                    /* Sets the last key pressed and the direction variables used to move the snake. */
-                    key = 'a';
-                    dirY = 0;
-                    dirX = -1;
-
-                    /* Go forward in time */
-                    time_event();
-                    break;
-
-                case (char) KEY_DOWN:
-                case 's':
-                    // Check for reversal:
-                    if (key == 'w' || key == (char)KEY_UP){
-                        game_condition(2);
-                    }
-                    // Draw the direction moved
-                    move(0, DIRECTION_POS);
-                    addstr("DOWN ");
-
-                    /* Sets the last key pressed and the direction variables used to move the snake. */
-                    key = 's';
-                    dirY = 1;
-                    dirX = 0;
-
-                    /* Go forward in time */
-                    time_event();
-                    break;
-
-                case (char) KEY_UP:
-                case 'w':
-                    // Check for reversal:
-                    if (key == 's' || key == (char)KEY_DOWN){
-                        game_condition(2);
-                    }
-                    // Draw the direction moved
-                    move(0, DIRECTION_POS);
-                    addstr("UP   ");
-
-                    /* Sets the last key pressed and the direction variables used to move the snake. */
-                    key = 'w';
-                    dirY = -1;
-                    dirX = 0;
-
-                    /* Go forward in time */
-                    time_event();
-                    break;
-
-                case (char) KEY_RIGHT:
-                case 'd':
-                    // Check for reversal:
-                    if (key == 'a' || key == (char)KEY_LEFT){
-                        game_condition(2);
-                    }
-                    // Draw the direction moved
-                    move(0, DIRECTION_POS);
-                    addstr("RIGHT");
-
-                    /* Sets the last key pressed and the direction variables used to move the snake. */
-                    key = 'd';
-                    dirY = 0;
-                    dirX = 1;
-                    
-                    /* Go forward in time */
-                    time_event();
-                    break;
-                case ' ':
-                    game_condition(4);
-                    break;
-                default:
-                    break;
-            }
-
-            // Draw the current time elapsed
-            move(0, CLOCK_POS);
-            sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
-            addstr(gameTimeStr);
-
-            // Draw the current number of ticks
-            move(0, TICK_POS);
-            sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
-            addstr(ticksStr);
-
-            // Reset cursor position
-            move(window_row - 1, window_col - 1);
-
-            // Wait a half a second. This sleep does not block interrupts.
+        while ((input = getch() ) == ERR) {
             nanosleep(&speed, &rem);
             ticks++;
-
-            // send tokens for border from buffer to terminal
-            refresh();
-
             if (ticks % timeUnit == 0) {
                 // One time unit has passed. Increment time elapsed
-                time_event(key);
-                ticks = 0;
+                time_event();
             }
         }
+
+        // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
+        switch (input) {
+            case (char) KEY_LEFT:
+            case 'a':
+                // Check for reversal:
+                if (key == 'd' || key == (char)KEY_RIGHT){
+                    game_condition(2);
+                }
+                // Draw the direction moved
+                move(0, DIRECTION_POS);
+                addstr("LEFT ");
+
+                /* Sets the last key pressed and the direction variables used to move the snake. */
+                key = 'a';
+                dirY = 0;
+                dirX = -1;
+
+                /* Go forward in time */
+                time_event();
+                break;
+
+            case (char) KEY_DOWN:
+            case 's':
+                // Check for reversal:
+                if (key == 'w' || key == (char)KEY_UP){
+                    game_condition(2);
+                }
+                // Draw the direction moved
+                move(0, DIRECTION_POS);
+                addstr("DOWN ");
+
+                /* Sets the last key pressed and the direction variables used to move the snake. */
+                key = 's';
+                dirY = 1;
+                dirX = 0;
+
+                /* Go forward in time */
+                time_event();
+                break;
+
+            case (char) KEY_UP:
+            case 'w':
+                // Check for reversal:
+                if (key == 's' || key == (char)KEY_DOWN){
+                    game_condition(2);
+                }
+                // Draw the direction moved
+                move(0, DIRECTION_POS);
+                addstr("UP   ");
+
+                /* Sets the last key pressed and the direction variables used to move the snake. */
+                key = 'w';
+                dirY = -1;
+                dirX = 0;
+
+                /* Go forward in time */
+                time_event();
+                break;
+
+            case (char) KEY_RIGHT:
+            case 'd':
+                // Check for reversal:
+                if (key == 'a' || key == (char)KEY_LEFT){
+                    game_condition(2);
+                }
+                // Draw the direction moved
+                move(0, DIRECTION_POS);
+                addstr("RIGHT");
+
+                /* Sets the last key pressed and the direction variables used to move the snake. */
+                key = 'd';
+                dirY = 0;
+                dirX = 1;
+                
+                /* Go forward in time */
+                time_event();
+                break;
+            case ' ':
+                game_condition(4);
+                break;
+            default:
+                break;
+        }
+
+        // Draw the current time elapsed
+        move(0, CLOCK_POS);
+        sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
+        addstr(gameTimeStr);
+
+        // Draw the current number of ticks
+        move(0, TICK_POS);
+        sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
+        addstr(ticksStr);
+
+        // Reset cursor position
+        move(window_row - 1, window_col - 1);
+
+        // send tokens for border from buffer to terminal
+        refresh();
     }
 }
 
@@ -661,5 +652,4 @@ void end_snake(int signum) {
     endwin();       // Terminate curses window
     tty_mode(1);    // Restore terminal settings
     exit(1);        // End the program
-    //<<<<<<< revisions
 }
