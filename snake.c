@@ -70,7 +70,7 @@ static int window_col;
 static int score = 0;
 static int snake_len = 3;
 static char key;
-int mode = 0;                // 1 = true, 0 = false
+int mode = 1;                // 1 = true, 0 = false
 int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
 int ticks = 0;               // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
 int lastTick = -1;           // Used by the inner loop to prevent extra inputs from getting registered when they shouldn't be.
@@ -127,8 +127,6 @@ int main(){
     tty_mode(0); // Save original settings
     signal(SIGINT, end_snake); // Revert to original settings on program termination
     signal(SIGQUIT, SIG_IGN);
-    set_settings(); // Set terminal settings for the program.
-    set_nodelay_mode(); // Setting this prevents getch() from blocking the program for input.
 
     /* start curses, set settings */
     initscr();
@@ -168,16 +166,21 @@ int main(){
     refresh();
 
     /* Keeps the user in a paused state until they hit a button ~ Nick Sabia */
-    while (!mode) {
-        input = getch();
-        switch (input) {
-            case ERR:
-                break;
-            default:
-                mode = 1;
-                break;
-        }
-    }
+    getchar();
+    //while (!mode) {
+        //input = getch();
+        //switch (input) {
+            //case ERR:
+               //break;
+           // default:
+                //mode = 1;
+                //break;
+        //}
+    //}
+
+    /* Enable settings after the user un-pauses */
+    set_settings(); // Set terminal settings for the program.
+    set_nodelay_mode(); // Setting this prevents getch() from blocking the program for input.
 
     /* Erase initial pause message */
     move(window_row / 2, window_col / 2);
