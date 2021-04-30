@@ -201,10 +201,6 @@ int main(){
         switch (input) {
             case (char) KEY_LEFT:
             case 'a':
-                // Check for reversal:
-                if (key == 'd' || key == (char)KEY_RIGHT){
-                    game_condition(2);
-                }
                 // Draw the direction moved
                 move(0, DIRECTION_POS);
                 addstr("LEFT ");
@@ -220,10 +216,6 @@ int main(){
 
             case (char) KEY_DOWN:
             case 's':
-                // Check for reversal:
-                if (key == 'w' || key == (char)KEY_UP){
-                    game_condition(2);
-                }
                 // Draw the direction moved
                 move(0, DIRECTION_POS);
                 addstr("DOWN ");
@@ -239,10 +231,6 @@ int main(){
 
             case (char) KEY_UP:
             case 'w':
-                // Check for reversal:
-                if (key == 's' || key == (char)KEY_DOWN){
-                    game_condition(2);
-                }
                 // Draw the direction moved
                 move(0, DIRECTION_POS);
                 addstr("UP   ");
@@ -258,10 +246,6 @@ int main(){
 
             case (char) KEY_RIGHT:
             case 'd':
-                // Check for reversal:
-                if (key == 'a' || key == (char)KEY_LEFT){
-                    game_condition(2);
-                }
                 // Draw the direction moved
                 move(0, DIRECTION_POS);
                 addstr("RIGHT");
@@ -275,7 +259,7 @@ int main(){
                 time_event();
                 break;
             case ' ':
-                game_condition(4);
+                game_condition(3);
                 break;
             default:
                 break;
@@ -453,6 +437,29 @@ void move_snake() {
     addstr(" ");
     refresh();
 }
+/*
+ * Purpose: Checks if the snake ran into itself.
+ * Method: Check each piece of the snake to see if it is in the same position as the head. If so, the snake ran into itself.
+ * Input: None.
+ * Returns: 1 if snake ran into self, 0 otherwise.
+*/
+int snake_hit_self() {
+    // Use a scanner node to check each part of the snake.
+    struct node* scanner = head->prev;
+    while(scanner != NULL) {
+        if (scanner->row == head->row && scanner->column == head->column) {
+            // The head is in the exact same spot as a piece of it's body.
+            // This means the snake has collided into itself.
+            //game_condition(3);
+            return 1;
+        }
+        else {
+            // Move onto the next piece of the snake.
+            scanner = scanner->prev;
+        }
+    }
+    return 0;
+}
 /* 4) auto_move()
 *  Purpose: moves snake depending on value of key (current direction of snake).
 *  Method: provides move with new y,x coordinates with which to move snake.
@@ -490,16 +497,9 @@ void auto_move(){
     }
 
     /* check for running into itself */
-    /*if (gameTime > 30) {
-        struct node* scanner = head->prev;
-        while(scanner != NULL) {
-            if (scanner->row == head->row && scanner->column == head->column) {
-                // The head is in the exact same spot as a piece of it's body.
-                // This means the snake has collided into itself.
-                game_condition(3);
-            }
-        }
-    }*/
+    if (snake_hit_self()) {
+        game_condition(2);
+    }
     
 }
 
@@ -551,16 +551,8 @@ void game_condition(int option){
             sleep(2);
             raise(SIGINT);
             break;
-            /* direction reversal */
-        case(2):
-            move(window_row / 2, window_col / 2);
-            addstr("YOU GOOFED!\tYou reversed direction.");
-            refresh();
-            sleep(2);
-            raise(SIGINT);
-            break;
             /* run into itself */
-        case(3):
+        case(2):
             move(window_row / 2, window_col / 2);
             addstr("YOU GOOFED!\tYou bit yourself.");
             refresh();
@@ -568,7 +560,7 @@ void game_condition(int option){
             raise(SIGINT);
             break;
             /* user exit */
-        case(4):
+        case(3):
             move(window_row / 2, window_col / 2);
             addstr("Good Bye.");
             refresh();
