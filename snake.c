@@ -173,9 +173,13 @@ int main(){
 
     /* init snake of size 5 */
     init_snake(head_y, head_x);
+
+    /* Create the first trophy, but don't display it yet. 
+     * To avoid the trophy accidentally getting erased after the pause text disappears,
+     * we print the trophy after the user unpauses.
+     */ 
     init_trophy();
     new_trophy();
-    print_trophy();
 
     /* Print initial pause message */
     move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
@@ -197,6 +201,9 @@ int main(){
     move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
     addstr("                                ");
     move(window_row - 1, window_col - 1);
+
+    /* Print the trophy */
+    print_trophy();
 
     /* The draw loop */
     while (mode) {
@@ -354,18 +361,17 @@ void pit_size(){
 *  by Jacob Pelletier
 *  Use structure to represent node
 *  Nodes used to represent a linked list
-*  Nodes are only added to the head and nodes are never removed.
-*  1) grow snake
-*  2) shorten snake
-*  3) create baby snake
-*  4) move snake - handles printing tokens and pointers
-*  5) auto move - handles snake coordinates and directionality
+*  1) init snake (create baby snake)
+*  2) grow snake
+*  3) move snake - handles printing tokens and pointers
+*  4) snake hit self - detects if the snake bit itself
+*  5) detect_collisions - handles collisions
 ***********************************************************************************************************************/
-/* starter_snake()
+/* init_snake()
 *  Purpose: initializes baby snake for game
 *  Method: part of initializing the game
 *  Input: none
-*  Returns: LL with new length 3.
+*  Returns: LL with new length 5.
 */
 void init_snake (int start_y, int start_x) {
     // Allocate memory for the head and tail.
@@ -573,8 +579,8 @@ void game_condition(int option){
 }
 /*
  *  3. time_event()
- *  Purpose: increment gameTime and move snake, occurs every second.
- *  Method: call each second of gameplay and w/ user input
+ *  Purpose: increment gameTime, move snake and detect collisions.
+ *  Method: call whenever enough ticks have passed to increment the gameTime. Essential to gameplay and user input
  *  Returns: snake will move on screen, gameTime will increment.
  */
 void time_event(){
@@ -588,11 +594,14 @@ void time_event(){
 *  TROPHIES
 *  
 ***********************************************************************************************************************/
+/* Initialize the trophy by allocating the struct to memory */
 void init_trophy() {
     trophy = (struct trophy*)malloc(sizeof (struct trophy*));
 }
 
-/* Outputs a new, randomly placed trophy */
+/* Outputs a new, randomly placed trophy.
+ * The trophy avoids spawning inside the snake.
+ */
 struct trophy new_trophy() {
     // We must place the trophy in a free, empty space.
     // Detect if the randomly generated coordinates are on the snake. If so, re-roll.
@@ -629,6 +638,7 @@ struct trophy new_trophy() {
     trophy->value = (rand() % 9) + 1;
 }
 
+/* Display the trophy on the screen */
 void print_trophy() {
     // Convert the random value into a string for printing to the screen.
     char* valueStr;
@@ -638,6 +648,7 @@ void print_trophy() {
     //refresh();
 }
 
+/* Detect if the snake has reached the trophy */
 int snake_hit_trophy() {
     if (head->row == trophy->row && head->column == trophy->column) {
         // The head is in the exact same spot as the trophy.
@@ -696,7 +707,6 @@ void set_settings() {
 /*
  * Converts I/O into non-blocking mode.
  * Turns on nodelay mode by using fcntl.
- * I'm uncertain if we need this, but I'm keeping the function here just in case.
  */
 void set_nodelay_mode() {
     int termflags;
