@@ -81,7 +81,10 @@ short mode = 1;                       // 1 = true, 0 = false
 unsigned int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
 unsigned short ticks = 0;             // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
 unsigned int timeUnit = 128;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
-
+// for trophy regeneration
+unsigned int trophyTime = 0;
+unsigned short trophyTicks = 0;
+unsigned int trophyUnit = 128;
 
 /* snake head location */
 int head_y;                     // TODO: change to random
@@ -178,7 +181,6 @@ int main(){
      * we print the trophy after the user unpauses.
      */ 
     init_trophy();
-    new_trophy();
 
     /* Print initial pause message */
     move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
@@ -201,9 +203,6 @@ int main(){
     addstr("                                ");
     move(window_row - 1, window_col - 1);
 
-    /* Print the trophy */
-    print_trophy();
-
     /* The draw loop */
     while (mode) {
         /* 
@@ -211,15 +210,28 @@ int main(){
          * Without this loop, a lot of extra inputs would get registered that would lead to the snake barreling off into one direction,
          * ignoring the user's attempt at slowing down or changing direction. ~ Nick Sabia
         */
+
+        // create random interval for trophy generation
+        int random_int = (rand() % 9) + 1;
+
         while ((input = getch() ) == ERR) {
             nanosleep(&speed, &rem);
             ticks++;
+            trophyTicks++;
+            if (trophyTicks % trophyUnit  == 0){
+                trophyTime++;
+                if (trophyTime % 9 == random_int){              // if current time mod 9 == random int
+                    new_trophy();
+                    print_trophy();                             // draw a new trophy
+                    random_int = (rand() % 9) + 1;              // set new value for random_int
+                }
+                trophyTicks = 0;
+            }
             if (ticks % timeUnit == 0) {
                 // One time unit has passed. Increment time elapsed
                 time_event();
             }
         }
-
         // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
         switch (input) {
             case (char) KEY_LEFT:
@@ -604,13 +616,16 @@ void init_trophy() {
  * The trophy avoids spawning inside the snake.
  */
 struct trophy new_trophy() {
+    // delete old
+    move(trophy->row, trophy->column);
+    addstr(" ");
     // We must place the trophy in a free, empty space.
     // Detect if the randomly generated coordinates are on the snake. If so, re-roll.
     int valid_space = 0;
     while(!valid_space) {
         // Subtract 1 from both randomly picked values to avoid getting the trophy stuck in the wall
-        trophy->row = (rand() % window_row-1) - 1;
-        trophy->column = (rand() % window_col-1) - 1;
+        trophy->row = (rand() % window_row-1) - 5;
+        trophy->column = (rand() % window_col-1) - 5;
 
         // Use a scanner node to check if the trophy is in the snake.
         struct node* scanner = head;
@@ -634,7 +649,7 @@ struct trophy new_trophy() {
         // If the scanner is not null, then the while loop got broken out of pre-maturely. 
         // Since valid_space is still 0, we will re-roll and try finding another spot to place the trophy.
     }
-    
+
     // Assign a random value to the trophy between 1 and 9.
     trophy->value = (rand() % 9) + 1;
 }
@@ -646,7 +661,6 @@ void print_trophy() {
     move(trophy->row, trophy->column);
     sprintf(valueStr, "%d", trophy->value);
     addstr(valueStr);
-    //refresh();
 }
 
 /* Detect if the snake has reached the trophy */
