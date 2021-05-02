@@ -29,10 +29,8 @@
 #define STDIN_FD 0
 
 /* Statistics cursor positions */
-#define CLOCK_POS 28
-#define TICK_POS 46
-#define DIRECTION_POS 65
-#define LAST_PRESSED_POS 89
+#define SCORE_POS 26
+#define DIRECTION_POS 75
 
 /* Pause menu */
 #define PAUSE_MSG_LEN 32
@@ -163,13 +161,11 @@ int main(){
 
     /* setup the sleep timer by Nick Sabia*/
     speed.tv_sec = 0;
-    //speed.tv_nsec = 50000000;   // 0.05 seconds in nanoseconds
-    speed.tv_nsec = 781250; // 1/128th of a second in nanoseconds
+    speed.tv_nsec = 781250;
 
-    char gameTimeStr[6];        // Used to store gameTime as a string.
+    char gameScoreStr[99];      // store score
+
     char input;                 // The key the user pressed.
-    char keyStr[4];             // Used to store key as a string.
-    char ticksStr[2];           // Used to store ticks as a string.
 
     /* use key pad  by Mateusz Mirga   */
     keypad(stdscr,TRUE);        //Handel arrow input MM
@@ -293,17 +289,9 @@ int main(){
         }
 
         // Draw the current time elapsed
-        move(0, CLOCK_POS);
-        sprintf(gameTimeStr, "%d", gameTime); // Convert the integer from the gameTime counter into a string.
-        addstr(gameTimeStr);
-
-        // Draw the current number of ticks
-        move(0, TICK_POS);
-        sprintf(ticksStr, "%d", ticks); // Convert the integer from ticks into a string.
-        addstr(ticksStr);
-
-        // Reset cursor position
-        move(window_row - 1, window_col - 1);
+        move(0, SCORE_POS);
+        sprintf(gameScoreStr, "%d", score); // Convert the integer from the Score counter into a string.
+        addstr(gameScoreStr);
 
         // send tokens for border from buffer to terminal
         refresh();
@@ -322,7 +310,7 @@ int main(){
  *  Returns: grid matrix printed to terminal
  */
 void init_pit_border(int x, int y) {
-    addstr("Welcome to Snake  |  Clock: ------  |  Ticks: ---  |  Direction: -----  |  Last Pressed: -  |  Press Space to exit.\n");    // name of game, score, space for user inputs
+    addstr("Welcome to Snake  | Score ------ | Press Space to exit. | Direction: \n");
     /* place border tokens in appropriate cells */
     for (int i = 1; i < y; i++) {
         for (int j = 0; j < x-1; j++) {
@@ -666,7 +654,13 @@ int snake_hit_trophy() {
     if (head->row == trophy->row && head->column == trophy->column) {
         // The head is in the exact same spot as the trophy.
         // This means the snake has successfully reached the trophy.
+
+        // increase score by trophy value
         score = score + trophy->value;
+
+        // increase speed by proportional factor to snake length
+        timeUnit = timeUnit - (0.5 * score);
+
         return 1;
     }
 
