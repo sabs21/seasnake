@@ -76,6 +76,7 @@ static int window_row;
 static int window_col;
 
 /* game stats */
+static int win_condition;
 static int score = 0;
 static char key;
 short mode = 1;                       // 1 = true, 0 = false
@@ -150,6 +151,8 @@ int main(){
     curs_set(0);
     /* get screen dimensions, alternatively could use LINES and COLS from curses */
     pit_size();
+    /* get half of perimeter for win condition */
+    win_condition = ( (2 * window_row) + (2 * window_col) / 2);
     /* draw the border */
     init_pit_border(window_col, window_row);
     /* center the snake */
@@ -575,6 +578,13 @@ void game_condition(int option){
             sleep(2);
             raise(SIGINT);
             break;
+        case(5):
+            move(window_row / 2, window_col / 2);
+            addstr("Nice Job! Good Bye.");
+            refresh();
+            sleep(2);
+            raise(SIGINT);
+            break;
     }
 }
 /*
@@ -588,6 +598,9 @@ void time_event(){
     gameTime++;
     move_snake();
     detect_collisions();
+    if (score >= win_condition){
+        game_condition(5);
+    }
     refresh();
 }
 /***********************************************************************************************************************
@@ -653,6 +666,7 @@ int snake_hit_trophy() {
     if (head->row == trophy->row && head->column == trophy->column) {
         // The head is in the exact same spot as the trophy.
         // This means the snake has successfully reached the trophy.
+        score = score + trophy->value;
         return 1;
     }
 
