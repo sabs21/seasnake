@@ -11,7 +11,6 @@
 *
 *  ** TODO: type up rules here **                                                                                      *
 ***********************************************************************************************************************/
-
 /** headers **/
 #include <sys/ioctl.h>
 #include <stdio.h>
@@ -24,7 +23,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <ncurses.h>
-
 #define INFO_ROW 1
 #define STDIN_FD 0
 
@@ -34,45 +32,37 @@
 
 /* Pause menu */
 #define PAUSE_MSG_LEN 32
-
 /** prototypes **/
 /* RE: snake pit */
 void pit_size();
 void init_pit_border();
-
 /* RE: snake */
 void eat_fruit(int y, int x);
 void init_snake(int, int);
 void move_snake();
 void shorten_tail();
 void detect_collisions();
-
 void move_snake_2();
 void grow_snake(int);
-
 /* RE: logic */
 char choose_random_direction();
 void game_condition(int option);
 void time_event();
-
 /* RE: Input */
 void tty_mode (int action);
 void set_settings();
 void set_nodelay_mode();
 int get_movement_input();
 void end_snake(int signum);
-
 /* Trophies */
 void init_trophy();
 struct trophy new_trophy();
 void print_trophy();
 int snake_hit_trophy();
-
 /** statics, structs, and constants **/
 /* window dimensions*/
 static int window_row;
 static int window_col;
-
 /* game stats */
 static int win_condition;
 static int score = 0;
@@ -85,18 +75,16 @@ unsigned int timeUnit = 128;          // A timeUnit consists of x amount of tick
 unsigned int trophyTime = 0;
 unsigned short trophyTicks = 0;
 unsigned int trophyUnit = 128;
-
+// for random intervals of trophy
+//static int trophyInterval;
 /* snake head location */
 int head_y;                     // TODO: change to random
 int head_x;                    // TODO: change to random
-
 /* logic */
 static short dirY;
 static short dirX;
-
 /* timing */
 struct timespec speed, rem; // speed governs the rate at which the screen refreshes. rem is unused, but will hold the time saved from the user's interupt signal
-
 /*
  * -- STRUCT NODE --
  * structure defining node of link list that will represent the list
@@ -112,20 +100,16 @@ struct node{
     struct node *prev;
     struct node *next;
 };
-
 struct trophy{
     int row;
     int column;
     int value;
 };
-
 /* head of snake */
 struct node *head;
 struct node *tail;
-
 /* trophy */
 struct trophy *trophy;
-
 /***********************************************************************************************************************
 *  DRIVER CODE                                                                                                         *
 ***********************************************************************************************************************/
@@ -138,12 +122,10 @@ struct trophy *trophy;
 int main(){
     /* Initialize global random number generator by Nick Sabia */
     srand((unsigned) time(NULL));
-
     /* Manage terminal settings by Nick Sabia */
     tty_mode(0); // Save original settings
     signal(SIGINT, end_snake); // Revert to original settings on program termination
     signal(SIGQUIT, SIG_IGN);
-
     /* start curses, set settings */
     initscr();
     /* clear screen */
@@ -164,7 +146,7 @@ int main(){
 
     /* setup the sleep timer by Nick Sabia*/
     speed.tv_sec = 0;
-    speed.tv_nsec = 781250;
+    speed.tv_nsec = 781250; // 1/128th of a second in nanoseconds
 
     char gameScoreStr[99];      // store score
 
@@ -172,66 +154,67 @@ int main(){
 
     /* use key pad  by Mateusz Mirga   */
     keypad(stdscr,TRUE);        //Handel arrow input MM
-
     /* init snake of size 5 */
     init_snake(head_y, head_x);
-
-    /* Create the first trophy, but don't display it yet. 
+    /* Create the first trophy, but don't display it yet.
      * To avoid the trophy accidentally getting erased after the pause text disappears,
      * we print the trophy after the user unpauses.
-     */ 
+     */
     init_trophy();
-
+    new_trophy();
     /* Print initial pause message */
     move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
     addstr("Press any key to start playing!");
     move(window_row - 1, window_col - 1);
-
     /* Send the first image from the buffer to terminal */
     refresh();
-
     /* Keeps the user in a paused state until they hit a button ~ Nick Sabia */
     getchar();
-
     /* Enable settings after the user un-pauses */
     set_settings(); // Set terminal settings for the program.
     noecho();
     set_nodelay_mode(); // Setting this prevents getch() from blocking the program for input.
-
     /* Erase initial pause message */
     move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
     addstr("                                ");
     move(window_row - 1, window_col - 1);
-
+    /* Print the trophy */
+    print_trophy();
+    
+    // assign trophy interval
+    int trophyInterval = (rand() % 9) + 1;
+    
     /* The draw loop */
     while (mode) {
-        /* 
-         * This inner loop prevents the snake from continuing quickly in a direction after a user stops pressing a directional key. 
+        /*
+         * This inner loop prevents the snake from continuing quickly in a direction after a user stops pressing a directional key.
          * Without this loop, a lot of extra inputs would get registered that would lead to the snake barreling off into one direction,
          * ignoring the user's attempt at slowing down or changing direction. ~ Nick Sabia
         */
-
-        // create random interval for trophy generation
-        int random_int = (rand() % 9) + 1;
-
         while ((input = getch() ) == ERR) {
             nanosleep(&speed, &rem);
             ticks++;
-            trophyTicks++;
-            if (trophyTicks % trophyUnit  == 0){
-                trophyTime++;
-                if (trophyTime % 9 == random_int){              // if current time mod 9 == random int
-                    new_trophy();
-                    print_trophy();                             // draw a new trophy
-                    random_int = (rand() % 9) + 1;              // set new value for random_int
-                }
-                trophyTicks = 0;
-            }
             if (ticks % timeUnit == 0) {
                 // One time unit has passed. Increment time elapsed
                 time_event();
             }
+            trophyTicks++;
+            if (trophyTicks % trophyUnit  == 0){
+                trophyTime++;
+                trophyTicks = 0;
+            }
         }
+
+        if (trophyTime % 9 == trophyInterval){   // time mod 9 should be be an int from 1-9
+            // delete old
+            move(trophy->row, trophy->column);
+            addstr(" ");
+            // add new
+            new_trophy();
+            print_trophy();
+            trophyInterval = (rand() % 9) + 1;  // assign new interval
+        }
+
         // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
         switch (input) {
             case (char) KEY_LEFT:
@@ -239,57 +222,47 @@ int main(){
                 // Draw the direction moved
                 move(0, DIRECTION_POS);
                 addstr("LEFT ");
-
                 /* Sets the last key pressed and the direction variables used to move the snake. */
                 key = 'a';
                 dirY = 0;
                 dirX = -1;
-
                 /* Go forward in time */
                 time_event();
                 break;
-
             case (char) KEY_DOWN:
             case 's':
                 // Draw the direction moved
                 move(0, DIRECTION_POS);
                 addstr("DOWN ");
-
                 /* Sets the last key pressed and the direction variables used to move the snake. */
                 key = 's';
                 dirY = 1;
                 dirX = 0;
-
                 /* Go forward in time */
                 time_event();
                 break;
-
             case (char) KEY_UP:
             case 'w':
                 // Draw the direction moved
                 move(0, DIRECTION_POS);
                 addstr("UP   ");
-
                 /* Sets the last key pressed and the direction variables used to move the snake. */
                 key = 'w';
                 dirY = -1;
                 dirX = 0;
-
                 /* Go forward in time */
                 time_event();
                 break;
-
             case (char) KEY_RIGHT:
             case 'd':
                 // Draw the direction moved
                 move(0, DIRECTION_POS);
                 addstr("RIGHT");
-
                 /* Sets the last key pressed and the direction variables used to move the snake. */
                 key = 'd';
                 dirY = 0;
                 dirX = 1;
-                
+
                 /* Go forward in time */
                 time_event();
                 break;
@@ -300,7 +273,7 @@ int main(){
                 break;
         }
 
-        // Draw the current time elapsed
+
         move(0, SCORE_POS);
         sprintf(gameScoreStr, "%d", score); // Convert the integer from the Score counter into a string.
         addstr(gameScoreStr);
@@ -309,7 +282,6 @@ int main(){
         refresh();
     }
 }
-
 /***********************************************************************************************************************
 *  SNAKE PIT                                                                                                           *
 *  1. draw_pit_border                                                                                                  *
@@ -342,10 +314,8 @@ void init_pit_border(int x, int y) {
  *  Reference: Moley Chapter 5, page 164.
  */
 void pit_size(){
-
     /* the address wbuf is the argument to that device controlled function. */
     struct winsize wbuf;
-
     /*
      *  The ioctl system call provides access to attributes of the device driver (terminal in this case) connected to fd.
      *  TIOCGWINSZ is the function code needed to access this attribute.
@@ -358,7 +328,6 @@ void pit_size(){
         window_col = wbuf.ws_col;                                              // assign global column
     }
 }
-
 /***********************************************************************************************************************
 *  SNAKE
 *  by Jacob Pelletier
@@ -380,15 +349,12 @@ void init_snake (int start_y, int start_x) {
     // Allocate memory for the head and tail.
     head = (struct node*)malloc(sizeof(struct node));
     tail = (struct node*)malloc(sizeof(struct node));
-
     // Connect the snake head and tail to form the body.
     head->prev = tail;
     tail->next = head;
-
     // Set the position of the snake's head.
     head->row = start_y;
     head->column = start_x;
-
     // Add some starter snake pieces to the snake.
     grow_snake(3);
 }
@@ -402,14 +368,11 @@ void grow_snake(int x) {
     for (int i = 0; i < x; i++) {
         // This is the node which will be closer to the head than the new_piece.
         struct node* body = tail->next;
-
         // Allocate a space in memory for this node.
-        struct node* new_piece = (struct node*)malloc(sizeof(struct node)); 
-
+        struct node* new_piece = (struct node*)malloc(sizeof(struct node));
         // Set the coordinates of this new snake piece
         new_piece->row = tail->row;
         new_piece->column = tail->column;
-
         // Insert the new_piece between the tail and the body node
         new_piece->next = tail->next; // Point the new_piece to the right nodes.
         new_piece->prev = tail;
@@ -425,40 +388,33 @@ void grow_snake(int x) {
  */
 void move_snake() {
     // The snake will always move to fill the placeholder.
-    // save placeholder position 
+    // save placeholder position
     int placeholder_y = head->row;
     int placeholder_x = head->column;
-
     // Move the head forward to the next position and draw it.
     head->row += dirY;
     head->column += dirX;
     move(head->row,head->column);
     addstr("O");
-
     // scan through snake printing tokens
     struct node* scanner = head->prev;
     while(scanner != NULL) {
         // Store the placeholder values from last iteration that this node to move to.
         int temp_y = placeholder_y;
         int temp_x = placeholder_x;
-
         // This node's current position will be the new placeholder for the next node.
         placeholder_y = scanner->row;
         placeholder_x = scanner->column;
-
         // Move the node to the new, correct position
         scanner->row = temp_y;
         scanner->column = temp_x;
-
         // Print the snake piece
         move(scanner->row,scanner->column);
         addstr("o");
-
         // Prepare for the next iteration
         scanner = scanner->prev;
     }
-
-    // Avoid leaving a trail behind the snake. 
+    // Avoid leaving a trail behind the snake.
     move(placeholder_y, placeholder_x);
     addstr(" ");
     refresh();
@@ -496,18 +452,15 @@ void detect_collisions(){
     if (head->row == 1 || head->row == LINES-1 || head->column == 0 || head->column == COLS-2){
         game_condition(1);
     }
-
     /* check for running into itself */
     if (snake_hit_self()) {
         game_condition(2);
     }
-
     /* check for trophy collision */
     if (snake_hit_trophy()) {
         game_condition(3);
     }
 }
-
 /***********************************************************************************************************************
 *  LOGIC
 *  1) random function for start direction by Nick Sabia
@@ -605,13 +558,12 @@ void time_event(){
 }
 /***********************************************************************************************************************
 *  TROPHIES
-*  
+*
 ***********************************************************************************************************************/
 /* Initialize the trophy by allocating the struct to memory */
 void init_trophy() {
     trophy = (struct trophy*)malloc(sizeof (struct trophy*));
 }
-
 /* Outputs a new, randomly placed trophy.
  * The trophy avoids spawning inside the snake.
  */
@@ -626,13 +578,12 @@ struct trophy new_trophy() {
         // Subtract 1 from both randomly picked values to avoid getting the trophy stuck in the wall
         trophy->row = (rand() % window_row-1) - 5;
         trophy->column = (rand() % window_col-1) - 5;
-
         // Use a scanner node to check if the trophy is in the snake.
         struct node* scanner = head;
         while(scanner != NULL) {
             if (scanner->row == trophy->row && scanner->column == trophy->column) {
-                // Break the loop pre-maturely. 
-                // As a result, scanner will not be null. 
+                // Break the loop pre-maturely.
+                // As a result, scanner will not be null.
                 break;
             }
             else {
@@ -640,20 +591,17 @@ struct trophy new_trophy() {
                 scanner = scanner->prev;
             }
         }
-
         if (scanner == NULL) {
             // If the scanner is null, then the while loop did not pre-maturely break and we have found a valid space for the new trophy.
             valid_space = 1;
         }
-
-        // If the scanner is not null, then the while loop got broken out of pre-maturely. 
+        // If the scanner is not null, then the while loop got broken out of pre-maturely.
         // Since valid_space is still 0, we will re-roll and try finding another spot to place the trophy.
     }
 
     // Assign a random value to the trophy between 1 and 9.
     trophy->value = (rand() % 9) + 1;
 }
-
 /* Display the trophy on the screen */
 void print_trophy() {
     // Convert the random value into a string for printing to the screen.
@@ -661,8 +609,8 @@ void print_trophy() {
     move(trophy->row, trophy->column);
     sprintf(valueStr, "%d", trophy->value);
     addstr(valueStr);
+    //refresh();
 }
-
 /* Detect if the snake has reached the trophy */
 int snake_hit_trophy() {
     if (head->row == trophy->row && head->column == trophy->column) {
@@ -681,12 +629,10 @@ int snake_hit_trophy() {
     // The snake's head is not on a trophy.
     return 0;
 }
-
 /***********************************************************************************************************************
 *  TERMINAL SETTINGS
 *  by Nick Sabia
 ***********************************************************************************************************************/
-
 /*
  * Saves the original terminal settings.
  * This is useful for when we want to revert to the original settings when the user exits this program.
@@ -709,7 +655,6 @@ void tty_mode (int action) {
         fcntl(0, F_SETFL, original_flags);
     }
 }
-
 /*
  * Set terminal driver settings.
  */
@@ -725,7 +670,6 @@ void set_settings() {
     //settings.c_cc[VMIN] = 1; /* get 1 char at a time */
     tcsetattr(STDIN_FD, TCSANOW, &settings);
 }
-
 /*
  * Converts I/O into non-blocking mode.
  * Turns on nodelay mode by using fcntl.
@@ -736,7 +680,6 @@ void set_nodelay_mode() {
     termflags |= O_NDELAY;
     fcntl(STDIN_FD, F_SETFL, termflags);
 }
-
 /*
  * This is the function which runs when the user terminates the program.
  */
