@@ -32,17 +32,18 @@
 
 /* Pause menu */
 #define PAUSE_MSG_LEN 32
+/* timing */
+#define TROPHY_MAX 10
+#define TROPHY_MIN 1
+#define ORIG_TIME_UNIT 128
 /** prototypes **/
 /* RE: snake pit */
 void pit_size();
 void init_pit_border();
 /* RE: snake */
-void eat_fruit(int y, int x);
 void init_snake(int, int);
 void move_snake();
-void shorten_tail();
 void detect_collisions();
-void move_snake_2();
 void grow_snake(int);
 /* RE: logic */
 char choose_random_direction();
@@ -52,7 +53,6 @@ void time_event();
 void tty_mode (int action);
 void set_settings();
 void set_nodelay_mode();
-int get_movement_input();
 void end_snake(int signum);
 /* Trophies */
 void init_trophy();
@@ -74,9 +74,10 @@ unsigned int timeUnit = 128;          // A timeUnit consists of x amount of tick
 // for trophy regeneration
 unsigned int trophyTime = 0;
 unsigned short trophyTicks = 0;
-unsigned int trophyUnit = 128;
+unsigned int trophyUnit = ORIG_TIME_UNIT;
 // for random intervals of trophy
-//static int trophyInterval;
+static int trophyInterval;
+unsigned int speedUpInterval;
 /* snake head location */
 int head_y;                     // TODO: change to random
 int head_x;                    // TODO: change to random
@@ -134,8 +135,9 @@ int main(){
     curs_set(0);
     /* get screen dimensions, alternatively could use LINES and COLS from curses */
     pit_size();
-    /* get half of perimeter for win condition */
+    /* get half of area for win condition */
     win_condition = ( (2 * window_row) + (2 * window_col) / 2);
+    speedUpInterval = win_condition / (ORIG_TIME_UNIT/2); // Calculate the score interval at which the game should increase its speed.
     /* draw the border */
     init_pit_border(window_col, window_row);
     /* center the snake */
@@ -146,7 +148,7 @@ int main(){
 
     /* setup the sleep timer by Nick Sabia*/
     speed.tv_sec = 0;
-    speed.tv_nsec = 781250; // 1/128th of a second in nanoseconds
+    speed.tv_nsec = 781250;     // 1/128th of a second in nanoseconds
 
     char gameScoreStr[99];      // store score
 
@@ -160,6 +162,7 @@ int main(){
      * To avoid the trophy accidentally getting erased after the pause text disappears,
      * we print the trophy after the user unpauses.
      */
+    //trophyInterval = (rand() % TROPHY_MAX) + TROPHY_MIN; // assign trophy interval
     init_trophy();
     new_trophy();
     /* Print initial pause message */
@@ -181,9 +184,6 @@ int main(){
     /* Print the trophy */
     print_trophy();
     
-    // assign trophy interval
-    int trophyInterval = (rand() % 9) + 1;
-    
     /* The draw loop */
     while (mode) {
         /*
@@ -194,25 +194,24 @@ int main(){
         while ((input = getch() ) == ERR) {
             nanosleep(&speed, &rem);
             ticks++;
+            trophyTicks++;
+
             if (ticks % timeUnit == 0) {
                 // One time unit has passed. Increment time elapsed
                 time_event();
             }
-            trophyTicks++;
-            if (trophyTicks % trophyUnit  == 0){
+            if (trophyTicks % trophyUnit == 0){
                 trophyTime++;
                 trophyTicks = 0;
             }
-        }
-
-        if (trophyTime % 9 == trophyInterval){   // time mod 9 should be be an int from 1-9
-            // delete old
-            move(trophy->row, trophy->column);
-            addstr(" ");
-            // add new
-            new_trophy();
-            print_trophy();
-            trophyInterval = (rand() % 9) + 1;  // assign new interval
+            if (trophyTime % TROPHY_MAX == trophyInterval) {   // time mod 9 should be be an int from 1-9
+                // delete old
+                move(trophy->row, trophy->column);
+                addstr(" ");
+                // add new
+                new_trophy();
+                print_trophy();
+            }
         }
 
         // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
@@ -297,11 +296,11 @@ void init_pit_border(int x, int y) {
     addstr("Welcome to Snake  | Score ------ | Press Space to exit. | Direction: \n");
     /* place border tokens in appropriate cells */
     for (int i = 1; i < y; i++) {
-        for (int j = 0; j < x-1; j++) {
+        for (int j = 0; j < x; j++) {
             move(i, j);
             if (i == 1 || i == y - 1)
                 addstr("X");
-            else if (j == 0 || j == x - 2)
+            else if (j == 0 || j == x - 1)
                 addstr("X");
         }
     }
@@ -417,7 +416,7 @@ void move_snake() {
     // Avoid leaving a trail behind the snake.
     move(placeholder_y, placeholder_x);
     addstr(" ");
-    refresh();
+    //refresh();
 }
 /*
  * Purpose: Checks if the snake ran into itself.
@@ -562,22 +561,19 @@ void time_event(){
 ***********************************************************************************************************************/
 /* Initialize the trophy by allocating the struct to memory */
 void init_trophy() {
-    trophy = (struct trophy*)malloc(sizeof (struct trophy*));
+    trophy = (struct trophy*)malloc(sizeof (struct trophy));
 }
 /* Outputs a new, randomly placed trophy.
  * The trophy avoids spawning inside the snake.
  */
 struct trophy new_trophy() {
-    // delete old
-    move(trophy->row, trophy->column);
-    addstr(" ");
     // We must place the trophy in a free, empty space.
     // Detect if the randomly generated coordinates are on the snake. If so, re-roll.
     int valid_space = 0;
     while(!valid_space) {
         // Subtract 1 from both randomly picked values to avoid getting the trophy stuck in the wall
-        trophy->row = (rand() % window_row-1) - 5;
-        trophy->column = (rand() % window_col-1) - 5;
+        trophy->row = (rand() % window_row-2) + 2;
+        trophy->column = (rand() % window_col-2) + 1;
         // Use a scanner node to check if the trophy is in the snake.
         struct node* scanner = head;
         while(scanner != NULL) {
@@ -601,6 +597,7 @@ struct trophy new_trophy() {
 
     // Assign a random value to the trophy between 1 and 9.
     trophy->value = (rand() % 9) + 1;
+    trophyInterval = (rand() % TROPHY_MAX) + TROPHY_MIN;  // assign new interval
 }
 /* Display the trophy on the screen */
 void print_trophy() {
@@ -621,7 +618,7 @@ int snake_hit_trophy() {
         score = score + trophy->value;
 
         // increase speed by proportional factor to snake length
-        timeUnit = timeUnit - (0.5 * score);
+        timeUnit = ORIG_TIME_UNIT - (score/speedUpInterval);
 
         return 1;
     }
