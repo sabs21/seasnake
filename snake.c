@@ -33,39 +33,46 @@
 
 /* Pause menu */
 #define PAUSE_MSG_LEN 32
-/* timing (1 second = 10 trophyUnits) */
+
+/* timing constants (1 second = 10 trophyUnits/timeUnits ) */
 #define TROPHY_MAX 90
 #define TROPHY_MIN 10
 #define ORIG_TIME_UNIT 128
+
 /** prototypes **/
 /* RE: snake pit */
 void pit_size();
 void init_pit_border();
+
 /* RE: snake */
 void init_snake(int, int);
 void move_snake();
 void detect_collisions();
 void grow_snake(int);
+
 /* RE: logic */
 char choose_random_direction();
 void game_condition(int option);
 void time_event();
 void print_score();
+
 /* RE: Input */
 void tty_mode (int action);
 void set_settings();
 void set_nodelay_mode();
 void end_snake(int signum);
+
 /* Trophies */
 void init_trophy();
 void new_trophy();
 void print_trophy();
 int snake_hit_trophy();
-//void print_trophy_pos();
+
 /** statics, structs, and constants **/
 /* window dimensions*/
 static int window_row = 0;
 static int window_col = 0;
+
 /* game stats */
 static int win_condition = 0;
 static int score = 0;
@@ -75,24 +82,31 @@ short mode = 1;                       // 1 = true, 0 = false
 unsigned int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
 unsigned short ticks = 0;             // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
 unsigned short timeUnit = 128;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
+
 /* Trophy stats */
 char trophyXStr[6];
 char trophyYStr[6];
+
 // for trophy regeneration
 unsigned short trophyTime = 0;
 unsigned short trophyTicks = 0;
 unsigned short trophyUnit = ORIG_TIME_UNIT;
+
 // for random intervals of trophy
 unsigned int trophyExpires = 0;
 unsigned int speedUpInterval = 0;
+
 /* snake head location */
 int head_y = 0;
 int head_x = 0;
+
 /* logic */
 static short dirY = 0;
 static short dirX = 0;
+
 /* timing */
 struct timespec speed, rem; // speed governs the rate at which the screen refreshes. rem is unused, but will hold the time saved from the user's interupt signal
+
 /*
  * -- STRUCT NODE --
  * structure defining node of link list that will represent the list
@@ -113,9 +127,11 @@ struct trophy{
     int column;
     int value;
 };
+
 /* head of snake */
 struct node *head;
 struct node *tail;
+
 /* trophy */
 struct trophy *trophy;
 /***********************************************************************************************************************
@@ -130,26 +146,35 @@ struct trophy *trophy;
 int main(){
     /* Initialize global random number generator by Nick Sabia */
     srand((unsigned) time(NULL));
+
     /* Manage terminal settings by Nick Sabia */
     tty_mode(0); // Save original settings
     signal(SIGINT, end_snake); // Revert to original settings on program termination
     signal(SIGQUIT, SIG_IGN);
+
     /* start curses, set settings */
     initscr();
+
     /* clear screen */
     clear();
+
     /* turn off cursor */
     curs_set(0);
+
     /* get screen dimensions, alternatively could use LINES and COLS from curses */
     pit_size();
+
     /* get half of area for win condition */
     win_condition = ( (2 * window_row) + (2 * window_col) / 2);
     speedUpInterval = win_condition / (ORIG_TIME_UNIT/2); // Calculate the score interval at which the game should increase its speed.
+
     /* draw the border */
     init_pit_border(window_col, window_row);
+
     /* center the snake */
     head_y = window_row/2;
     head_x = window_col/2;
+
     /* set random initial direction */
     key = choose_random_direction();
 
@@ -159,10 +184,12 @@ int main(){
 
     char input;                 // The key the user pressed.
 
-    /* use key pad  by Mateusz Mirga   */
-    keypad(stdscr,TRUE);        //Handle arrow input MM
+    /* use key pad by Mateusz Mirga   */
+    keypad(stdscr,TRUE);
+
     /* init snake of size 3 */
     init_snake(head_y, head_x);
+
     /* Create the first trophy, but don't display it yet.
      * To avoid the trophy accidentally getting erased after the pause text disappears,
      * we print the trophy after the user unpauses.
@@ -174,25 +201,30 @@ int main(){
     move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
     addstr("Press any key to start playing!");
     move(window_row - 1, window_col - 1);
+
     /* Send the first image from the buffer to terminal */
     refresh();
+
     /* Keeps the user in a paused state until they hit a button ~ Nick Sabia */
     getchar();
+
     /* Enable settings after the user un-pauses */
     set_settings(); // Set terminal settings for the program.
     noecho();
     set_nodelay_mode(); // Setting this prevents getch() from blocking the program for input.
+
     /* Erase initial pause message */
     move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
     addstr("                                ");
     move(window_row - 1, window_col - 1);
-    /* Print the trophy */
+
+    /* Print the first trophy */
     print_trophy();
     
     /* The draw loop */
     while (mode) {
         /*
-         * This inner loop prevents the snake from continuing quickly in a direction after a user stops pressing a directional key.
+         * This inner loop and its timing variables prevent the snake from continuing quickly in a direction after a user stops pressing a directional key.
          * Without this loop, a lot of extra inputs would get registered that would lead to the snake barreling off into one direction,
          * ignoring the user's attempt at slowing down or changing direction. ~ Nick Sabia
         */
@@ -219,7 +251,8 @@ int main(){
             }
         }
 
-        // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) MM
+        // Handling of user input: Only specified inputs receive a reaction; Wrong input or no input goes to default case (no input) 
+        // By Matt
         switch (input) {
             case (char) KEY_LEFT:
             case 'a':
@@ -275,7 +308,8 @@ int main(){
 /***********************************************************************************************************************
 *  SNAKE PIT                                                                                                           *
 *  1. draw_pit_border                                                                                                  *
-*  2. pit_size                                                                                                         *                                                                                                        *
+*  2. pit_size                                                                                                         *
+*  by Matt                                                                                                             *                                                                                                        *
 ***********************************************************************************************************************/
 /*
  *  1. init_pit_border()
@@ -458,9 +492,9 @@ void detect_collisions(){
 }
 /***********************************************************************************************************************
 *  LOGIC
-*  1) random function for start direction by Nick Sabia
-*  2) check for collision with wall or fruit with each movement
- * 3) another random function for randomly placing trophies
+*  1) random function for start direction by Justin
+*  2) check for collision with wall or fruit with each movement by Nick Sabia
+*  3) another random function for randomly placing trophies by Nick Sabia
 ***********************************************************************************************************************/
 /*
  *  1. choose_random_direction()
@@ -577,7 +611,7 @@ void print_score() {
 }
 /***********************************************************************************************************************
 *  TROPHIES
-*
+*  by Abigail
 ***********************************************************************************************************************/
 /* Initialize the trophy by allocating the struct to memory */
 void init_trophy() {
