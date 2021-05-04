@@ -28,7 +28,9 @@
 
 /* Statistics cursor positions */
 #define SCORE_POS 26
-#define DIRECTION_POS 75
+#define TROPHY_X_POS 45
+#define TROPHY_Y_POS 62
+#define DIRECTION_POS 103
 
 /* Pause menu */
 #define PAUSE_MSG_LEN 32
@@ -49,6 +51,7 @@ void grow_snake(int);
 char choose_random_direction();
 void game_condition(int option);
 void time_event();
+void print_score();
 /* RE: Input */
 void tty_mode (int action);
 void set_settings();
@@ -59,6 +62,7 @@ void init_trophy();
 struct trophy new_trophy();
 void print_trophy();
 int snake_hit_trophy();
+void print_trophy_pos();
 /** statics, structs, and constants **/
 /* window dimensions*/
 static int window_row;
@@ -66,11 +70,15 @@ static int window_col;
 /* game stats */
 static int win_condition;
 static int score = 0;
+char gameScoreStr[12];
 static char key;
 short mode = 1;                       // 1 = true, 0 = false
 unsigned int gameTime = 0;            // Tracks how many iterations of the while loop have been performed.
 unsigned short ticks = 0;             // Keeps track of when checks are performed in the game. When ticks == 0, progress the game forward by 1 gameunit.
 unsigned int timeUnit = 128;          // A timeUnit consists of x amount of ticks. So in this case, 8 ticks == 1 timeUnit.
+/* Trophy stats */
+char trophyXStr[6];
+char trophyYStr[6];
 // for trophy regeneration
 unsigned int trophyTime = 0;
 unsigned short trophyTicks = 0;
@@ -150,8 +158,7 @@ int main(){
     speed.tv_sec = 0;
     speed.tv_nsec = 781250;     // 1/128th of a second in nanoseconds
 
-    char gameScoreStr[99];      // store score
-
+    //char gameScoreStr[12];    // store score
     char input;                 // The key the user pressed.
 
     /* use key pad  by Mateusz Mirga   */
@@ -165,6 +172,7 @@ int main(){
     //trophyInterval = (rand() % TROPHY_MAX) + TROPHY_MIN; // assign trophy interval
     init_trophy();
     new_trophy();
+
     /* Print initial pause message */
     move(window_row / 2, window_col / 2 - PAUSE_MSG_LEN/2);
     addstr("Press any key to start playing!");
@@ -194,7 +202,7 @@ int main(){
         while ((input = getch() ) == ERR) {
             nanosleep(&speed, &rem);
             ticks++;
-            trophyTicks++;
+            //trophyTicks++;
 
             if (ticks % timeUnit == 0) {
                 // One time unit has passed. Increment time elapsed
@@ -272,11 +280,6 @@ int main(){
                 break;
         }
 
-
-        move(0, SCORE_POS);
-        sprintf(gameScoreStr, "%d", score); // Convert the integer from the Score counter into a string.
-        addstr(gameScoreStr);
-
         // send tokens for border from buffer to terminal
         refresh();
     }
@@ -293,7 +296,7 @@ int main(){
  *  Returns: grid matrix printed to terminal
  */
 void init_pit_border(int x, int y) {
-    addstr("Welcome to Snake  | Score ------ | Press Space to exit. | Direction: \n");
+    addstr("Welcome to Snake  | Score ------ | Trophy X: ---- | Trophy Y: ---- | Press Space to exit. | Direction: \n");
     /* place border tokens in appropriate cells */
     for (int i = 1; i < y; i++) {
         for (int j = 0; j < x; j++) {
@@ -448,7 +451,7 @@ int snake_hit_self() {
 */
 void detect_collisions(){
     /* check for border collisions */
-    if (head->row == 1 || head->row == LINES-1 || head->column == 0 || head->column == COLS-2){
+    if (head->row == 1 || head->row == LINES-1 || head->column == 0 || head->column == COLS-1){
         game_condition(1);
     }
     /* check for running into itself */
@@ -519,6 +522,7 @@ void game_condition(int option){
             /* snake reaches trophy */
         case(3):
             grow_snake(trophy->value);
+            print_score();
             new_trophy();
             print_trophy();
             break;
@@ -555,13 +559,21 @@ void time_event(){
     }
     refresh();
 }
+/*
+ * Prints the current score to the screen.
+ */
+void print_score() {
+    move(0, SCORE_POS);
+    sprintf(gameScoreStr, "%d", score); // Convert the integer from the Score counter into a string.
+    addstr(gameScoreStr);
+}
 /***********************************************************************************************************************
 *  TROPHIES
 *
 ***********************************************************************************************************************/
 /* Initialize the trophy by allocating the struct to memory */
 void init_trophy() {
-    trophy = (struct trophy*)malloc(sizeof (struct trophy));
+    trophy = malloc(sizeof (struct trophy*));
 }
 /* Outputs a new, randomly placed trophy.
  * The trophy avoids spawning inside the snake.
@@ -572,8 +584,8 @@ struct trophy new_trophy() {
     int valid_space = 0;
     while(!valid_space) {
         // Subtract 1 from both randomly picked values to avoid getting the trophy stuck in the wall
-        trophy->row = (rand() % window_row-2) + 2;
-        trophy->column = (rand() % window_col-2) + 1;
+        trophy->row = (rand() % (window_row-3)) + 2;
+        trophy->column = (rand() % (window_col-1)) + 1;
         // Use a scanner node to check if the trophy is in the snake.
         struct node* scanner = head;
         while(scanner != NULL) {
@@ -606,6 +618,8 @@ void print_trophy() {
     move(trophy->row, trophy->column);
     sprintf(valueStr, "%d", trophy->value);
     addstr(valueStr);
+
+    print_trophy_pos();
     //refresh();
 }
 /* Detect if the snake has reached the trophy */
@@ -615,7 +629,7 @@ int snake_hit_trophy() {
         // This means the snake has successfully reached the trophy.
 
         // increase score by trophy value
-        score = score + trophy->value;
+        score += trophy->value;
 
         // increase speed by proportional factor to snake length
         timeUnit = ORIG_TIME_UNIT - (score/speedUpInterval);
@@ -625,6 +639,21 @@ int snake_hit_trophy() {
 
     // The snake's head is not on a trophy.
     return 0;
+}
+void print_trophy_pos() {
+    // Erase old info
+    move(0, TROPHY_X_POS);
+    addstr("    ");
+    move(0, TROPHY_Y_POS);
+    addstr("    ");
+
+    move(0, TROPHY_X_POS);
+    sprintf(trophyXStr, "%d", trophy->column);
+    addstr(trophyXStr);
+
+    move(0, TROPHY_Y_POS);
+    sprintf(trophyYStr, "%d", trophy->row);
+    addstr(trophyYStr);
 }
 /***********************************************************************************************************************
 *  TERMINAL SETTINGS
